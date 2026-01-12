@@ -1,0 +1,27 @@
+# build
+target/
+
+# ide
+.idea/
+*.iml
+.vscode/
+
+# logs & local
+logs/
+*.log
+.local/
+
+# 本地工作文档（用户决策 2026-11-03：规划/迁移类文档不进公开仓库）
+docs/
+
+# env
+.env
+.env.*
+
+# frontend (reserved)
+node_modules/
+dist/
+
+# os
+.DS_Store
+Thumbs.db

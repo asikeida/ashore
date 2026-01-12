@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>me.asikeida</groupId>
+        <artifactId>ashore</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>ashore-service</artifactId>
+    <name>Ashore Service</name>
+    <description>业务域层：用户、面经、评论、通知、排行、搜索、AI。MyBatis-Plus 落库与领域事件发布。</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>me.asikeida</groupId>
+            <artifactId>ashore-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>me.asikeida</groupId>
+            <artifactId>ashore-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+        </dependency>
+    </dependencies>
+</project>
