@@ -17,6 +17,7 @@ docs/
 # env
 .env
 .env.*
+!.env.example
 
 # frontend (reserved)
 node_modules/
