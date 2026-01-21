@@ -1,0 +1,11 @@
+# 本地开发环境：连接 compose 起的 MySQL（127.0.0.1:3307，见根目录 compose.yaml 与 .env.example）
+# 真实密码通过环境变量注入；默认值仅匹配 .env.example 的本地占位，非生产凭据。
+spring:
+  datasource:
+    url: ${ASHORE_DB_URL:jdbc:mysql://127.0.0.1:3307/ashore?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${ASHORE_DB_USERNAME:ashore}
+    password: ${ASHORE_DB_PASSWORD:change-me-local}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
