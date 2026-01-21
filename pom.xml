@@ -21,6 +21,8 @@
         <java.version>21</java.version>
         <!-- MP 3.5.18 在 Spring Boot 4.1.1 下自动配置不生效，已验证，见 docs/开发规划/01 -->
         <mybatis-plus.version>3.5.18</mybatis-plus.version>
+        <!-- Flyway 用 SB 托管版本（11.x）。12.x 移除了 cleanOnValidationError API，与 SB 3.5.6 自动配置不兼容（已实测）；
+             托管版本对 MySQL 8.4 报"未测试"提示属已知限制，建表与迁移执行正常 -->
     </properties>
 
     <modules>
