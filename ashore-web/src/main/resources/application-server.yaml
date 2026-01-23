@@ -1,0 +1,11 @@
+# 云端开发服务器 profile：连接 4-yuchen 上的 MySQL/Redis。
+# 前置条件：
+# 1. 服务器已部署 deploy/dev-server/compose.yaml（端口仅绑服务器 127.0.0.1）
+# 2. 本地已建立 SSH 隧道：./scripts/dev-tunnel.sh（本地 13306/16379）
+# 3. 密码通过环境变量 ASHORE_SERVER_DB_PASSWORD 注入（与服务器 .env 的 ASHORE_DB_PASSWORD 一致），不设默认值
+spring:
+  datasource:
+    url: ${ASHORE_SERVER_DB_URL:jdbc:mysql://127.0.0.1:13306/ashore?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${ASHORE_SERVER_DB_USERNAME:ashore}
+    password: ${ASHORE_SERVER_DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver

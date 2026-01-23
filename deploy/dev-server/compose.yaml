@@ -1,0 +1,55 @@
+# 云端开发服务器（4-yuchen）的 MySQL + Redis 环境。
+# 与本地 compose.yaml 的关键差异：
+# 1. 端口只绑定服务器自身的 127.0.0.1 —— 公网完全不可达，仅通过 SSH 隧道访问（见 scripts/dev-tunnel.sh）
+# 2. 2C2G 机器，加内存上限约束
+# 3. restart: unless-stopped 常驻
+# 部署方式见 docs/部署运维/01-云端开发数据库与SSH隧道.md
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: ashore-dev-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${ASHORE_DB_NAME:?Set ASHORE_DB_NAME in .env}
+      MYSQL_USER: ${ASHORE_DB_USERNAME:?Set ASHORE_DB_USERNAME in .env}
+      MYSQL_PASSWORD: ${ASHORE_DB_PASSWORD:?Set ASHORE_DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${ASHORE_DB_ROOT_PASSWORD:?Set ASHORE_DB_ROOT_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${ASHORE_DB_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    mem_limit: 900m
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          MYSQL_PWD="$${MYSQL_PASSWORD}" mysql --protocol=TCP -h 127.0.0.1
+          -u"$${MYSQL_USER}" "$${MYSQL_DATABASE}" -e "SELECT 1" >/dev/null 2>&1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7
+    container_name: ashore-dev-redis
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "200mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "127.0.0.1:${ASHORE_REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    mem_limit: 300m
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  mysql-data:
+  redis-data:
