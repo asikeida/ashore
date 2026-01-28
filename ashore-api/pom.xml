@@ -11,4 +11,12 @@
     <artifactId>ashore-api</artifactId>
     <name>Ashore API</name>
     <description>纯数据模型：VO、枚举、事件、异常、请求上下文。不依赖任何其他模块。</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 </project>

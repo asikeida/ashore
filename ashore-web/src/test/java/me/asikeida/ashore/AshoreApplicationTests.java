@@ -18,11 +18,12 @@ class AshoreApplicationTests {
     }
 
     @Test
-    void pingRespondsUp() throws Exception {
+    void pingReturnsUnifiedRespShape() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new PingController()).build();
         mockMvc.perform(get("/api/ping"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.app").value("ashore"))
-                .andExpect(jsonPath("$.status").value("UP"));
+                .andExpect(jsonPath("$.status.code").value(0))
+                .andExpect(jsonPath("$.result.app").value("ashore"))
+                .andExpect(jsonPath("$.result.time").isNotEmpty());
     }
 }
