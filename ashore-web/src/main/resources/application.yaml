@@ -1,6 +1,15 @@
 spring:
   application:
     name: ashore
+  datasource:
+    hikari:
+      # 显式声明连接池参数（Hikari 为 Spring Boot 默认池，随 starter 传递引入）。
+      # pool-name 用于在启动日志中确认本配置已生效（应看到 "ashore-db - Starting..."）。
+      pool-name: ashore-db
+      maximum-pool-size: 10        # 默认值；单机开发足够，上线按并发与 DB max_connections 评估
+      connection-timeout: 30000    # 获取连接最长等待 30s，超时抛异常而非无限阻塞
+      max-lifetime: 1800000        # 连接最长存活 30min，需小于 MySQL wait_timeout 防止使用已失效连接
+      leak-detection-threshold: 60000  # 连接借出超 60s 未归还打印告警日志（开发期排查连接泄漏）
 
 server:
   port: 8080
