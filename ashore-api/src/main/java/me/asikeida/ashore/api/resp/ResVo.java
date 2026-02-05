@@ -27,6 +27,11 @@ public class ResVo<T> {
         return build(status, null);
     }
 
+    /** 失败且携带附加明细（如参数校验的字段级错误列表） */
+    public static <T> ResVo<T> fail(StatusEnum status, T result) {
+        return build(status, result);
+    }
+
     public static <T> ResVo<T> fail(Status status) {
         return build(status, null);
     }
