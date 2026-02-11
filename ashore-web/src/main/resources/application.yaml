@@ -14,6 +14,11 @@ spring:
 server:
   port: 8080
 
+logging:
+  pattern:
+    # [%X{requestId}] 为 MDC 插槽：RequestIDFilter 写入后，本轮所有日志行自动携带同一请求标识
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{requestId}] [%thread] %logger{36} - %msg%n"
+
 management:
   endpoints:
     web:
