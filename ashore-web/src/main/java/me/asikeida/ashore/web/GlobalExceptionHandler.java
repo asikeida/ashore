@@ -5,14 +5,17 @@ import java.util.List;
 import me.asikeida.ashore.api.exception.BizException;
 import me.asikeida.ashore.api.resp.FieldViolation;
 import me.asikeida.ashore.api.resp.ResVo;
+import me.asikeida.ashore.api.resp.Status;
 import me.asikeida.ashore.api.resp.StatusEnum;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 全局异常处理：把异常统一转换为 ResVo，并按错误码段匹配 HTTP 状态码。
@@ -62,6 +65,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ResVo<Void>> handleUnreadable(HttpMessageNotReadableException e) {
         log.warn("请求体解析失败：{}", e.getMessage());
         return ResponseEntity.badRequest().body(ResVo.fail(StatusEnum.PARAM_ERROR));
+    }
+
+    /** 未匹配路径（Spring Boot 3.2+ 对静态资源/未知路径抛出）：404，防兜底误吞为 500 */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ResVo<Void>> handleNoResource(NoResourceFoundException e) {
+        log.warn("路径不存在：{} {}", e.getHttpMethod(), e.getResourcePath());
+        return ResponseEntity.status(404).body(ResVo.fail(StatusEnum.NOT_FOUND));
+    }
+
+    /** 请求方法不匹配（GET 端点收到 POST 等）：405，同理防兜底误吞 */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ResVo<Void>> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
+        log.warn("不支持的请求方法：{}（支持 {}）", e.getMessage(), e.getSupportedHttpMethods());
+        return ResponseEntity.status(405)
+                .body(ResVo.fail(Status.of(405001, "不支持的请求方法")));
     }
 
     /** 兜底：未预期异常对外只返回统一模糊文案，堆栈只进日志（不泄漏内部实现） */

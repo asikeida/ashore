@@ -11,7 +11,9 @@ import me.asikeida.ashore.api.exception.ExceptionUtil;
 import me.asikeida.ashore.api.resp.ResVo;
 import me.asikeida.ashore.api.resp.StatusEnum;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -65,6 +67,21 @@ class GlobalExceptionHandlerTests {
     }
 
     @Test
+    void noResourceFoundMapsTo404() throws Exception {
+        mvc.perform(get("/demo/static-missing"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status.code").value(404001));
+    }
+
+    @Test
+    void methodNotSupportedMapsTo405() throws Exception {
+        mvc.perform(post("/demo/unauthorized"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.status.code").value(405001))
+                .andExpect(jsonPath("$.status.msg").value("不支持的请求方法"));
+    }
+
+    @Test
     void unexpectedExceptionReturnsGenericMessageWithoutLeakingDetail() throws Exception {
         mvc.perform(get("/demo/boom"))
                 .andExpect(status().isInternalServerError())
@@ -95,6 +112,11 @@ class GlobalExceptionHandlerTests {
         @PostMapping("/demo/article")
         public ResVo<String> create(@Valid @RequestBody ArticleReq req) {
             return ResVo.ok("created");
+        }
+
+        @GetMapping("/demo/static-missing")
+        public ResVo<Void> staticMissing() throws NoResourceFoundException {
+            throw new NoResourceFoundException(HttpMethod.GET, "static/path.png");
         }
 
         @GetMapping("/demo/boom")
