@@ -100,7 +100,7 @@ export JAVA_HOME=/c/Users/guowe/scoop/apps/temurin21-jdk/current
 ./mvnw test -pl ashore-service -am   # 只测 service 模块及其上游
 ```
 
-新增或修改 API 时，还要验证参数校验、错误响应、权限边界和 OpenAPI 文档。启动验证：`./mvnw spring-boot:run` 后访问 `http://127.0.0.1:8080/api/ping` 与 `/actuator/health`。
+新增或修改 API 时，还要验证参数校验、错误响应、权限边界和 OpenAPI 文档。启动验证：`./mvnw spring-boot:run` 后访问 `http://127.0.0.1:8080/api/ping`（统一响应）、`/actuator/health`（应含 db/redis 组件明细）、`/swagger-ui/index.html`（接口文档，`/v3/api-docs` 为 Apifox 同步数据源）。
 
 ## 8. 本地审核与接口同步
 

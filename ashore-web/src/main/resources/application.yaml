@@ -24,3 +24,7 @@ management:
     web:
       exposure:
         include: health,info
+  endpoint:
+    health:
+      # 开发期展示 db/redis 组件明细，便于确认本地/隧道环境连通（上生产前改为 never）
+      show-details: always
