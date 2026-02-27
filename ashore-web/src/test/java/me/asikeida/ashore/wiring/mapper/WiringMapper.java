@@ -1,4 +1,4 @@
-package me.asikeida.ashore;
+package me.asikeida.ashore.wiring.mapper;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
