@@ -23,6 +23,13 @@ public class UserDO {
     @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
+    /** 角色常量：与 role 列取值对应（取值稳定后可升级为枚举） */
+    public static final String ROLE_USER = "USER";
+    public static final String ROLE_ADMIN = "ADMIN";
+    /** 状态常量：与 status 列取值对应 */
+    public static final String STATUS_ACTIVE = "ACTIVE";
+    public static final String STATUS_BANNED = "BANNED";
+
     /** 登录账号：用户名或邮箱，全局唯一 */
     private String account;
 

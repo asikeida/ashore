@@ -13,6 +13,11 @@
     <description>纯数据模型：VO、枚举、事件、异常、请求上下文。不依赖任何其他模块。</description>
 
     <dependencies>
+        <!-- Bean Validation 注解用于请求 DTO 的约束声明（实现由 web 的 starter-validation 提供） -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
