@@ -19,7 +19,10 @@ import org.springframework.boot.test.context.SpringBootTest;
         "spring.datasource.url=jdbc:h2:mem:userdao;DB_CLOSE_DELAY=-1;MODE=MySQL",
         "spring.datasource.driver-class-name=org.h2.Driver",
         "spring.datasource.username=sa",
-        "spring.datasource.password="
+        "spring.datasource.password=",
+        // ashore.session.* 定义在 web 模块 yaml，service 测试自举需自带（SessionServiceImpl @Value 无默认值，生产漏配即 fail-fast）
+        "ashore.session.jwt-secret=test-secret",
+        "ashore.session.expire-days=30"
 })
 class UserDaoTests {
 
