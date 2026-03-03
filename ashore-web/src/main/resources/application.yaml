@@ -14,6 +14,13 @@ spring:
 server:
   port: 8080
 
+ashore:
+  session:
+    # JWT 签名密钥：生产环境必须通过 ASHORE_JWT_SECRET 环境变量注入并更换
+    jwt-secret: ${ASHORE_JWT_SECRET:dev-secret-ashore-change-me-in-prod}
+    # 会话有效期（天），同时是 JWT 过期与 Redis TTL
+    expire-days: 30
+
 logging:
   pattern:
     # [%X{requestId}] 为 MDC 插槽：RequestIDFilter 写入后，本轮所有日志行自动携带同一请求标识

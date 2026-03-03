@@ -30,6 +30,22 @@
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-crypto</artifactId>
         </dependency>
+        <!-- 会话签发/校验（对照 paicoding 选用 auth0 java-jwt） -->
+        <dependency>
+            <groupId>com.auth0</groupId>
+            <artifactId>java-jwt</artifactId>
+            <version>4.4.0</version>
+        </dependency>
+        <!-- Redis：会话登记与后续计数/排行（数据访问归属本模块，web 经传递依赖获得） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <!-- Jackson：会话身份快照的 JSON 序列化（独立于 web 引入） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-json</artifactId>
+        </dependency>
         <!-- Flyway：迁移脚本与依赖都归属持久化层模块（web 经传递依赖获得） -->
         <dependency>
             <groupId>org.flywaydb</groupId>

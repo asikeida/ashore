@@ -36,11 +36,7 @@
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>2.8.17</version>
         </dependency>
-        <!-- Redis：M1-6 接入健康检查；业务封装（会话/计数）随 M2 使用而建 -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
-        </dependency>
+        <!-- Redis 由 ashore-service 声明（数据访问归属），经传递依赖用于健康检查 -->
         <!-- 数据库驱动（runtime）；Flyway 及迁移脚本在 ashore-service（持久化层归属，经传递依赖可用） -->
         <dependency>
             <groupId>com.mysql</groupId>

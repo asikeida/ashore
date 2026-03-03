@@ -1,18 +1,30 @@
 package me.asikeida.ashore.web.user;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import me.asikeida.ashore.api.context.LoginUser;
+import me.asikeida.ashore.service.user.service.SessionService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * 账密注册登录接口测试：走完整上下文（含 @Valid 校验、BCrypt、H2 数据库）。
+ * 会话签发依赖 Redis，测试环境以 @MockitoBean 桩替换 SessionService
+ * （签发/校验/吊销的集成行为由 AuthInterceptorTests 与远端 E2E 覆盖）。
  * 各用例用时间戳账号隔离，互不依赖执行顺序。
  */
 @SpringBootTest(properties = {
@@ -26,6 +38,14 @@ class AuthControllerTests {
 
     @Autowired
     private MockMvc mvc;
+
+    @MockitoBean
+    private SessionService sessionService;
+
+    @BeforeEach
+    void stubSessionIssuance() {
+        when(sessionService.issue(any())).thenReturn(new SessionService.IssuedSession("stub-token", 3600));
+    }
 
     private String uniqueAccount() {
         // 账号需符合 RegisterReq 的 @Pattern（字母数字_@.），不能用连字符
@@ -47,7 +67,21 @@ class AuthControllerTests {
         mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status.code").value(0))
-                .andExpect(jsonPath("$.result.nickname").value("测试岸友"));
+                .andExpect(jsonPath("$.result.nickname").value("测试岸友"))
+                // 登录成功即签发会话 Cookie（HttpOnly）
+                .andExpect(cookie().exists(SessionService.COOKIE_NAME))
+                .andExpect(cookie().value(SessionService.COOKIE_NAME, "stub-token"))
+                .andExpect(cookie().httpOnly(SessionService.COOKIE_NAME, true));
+    }
+
+    @Test
+    void logoutClearsCookieAndSucceedsWithoutSession() throws Exception {
+        mvc.perform(delete("/api/v1/auth/logout"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status.code").value(0))
+                // 清除 Cookie 体现在 Set-Cookie 响应头（Max-Age=0），不在响应体
+                .andExpect(header().string("Set-Cookie",
+                        org.hamcrest.Matchers.containsString("Max-Age=0")));
     }
 
     @Test
