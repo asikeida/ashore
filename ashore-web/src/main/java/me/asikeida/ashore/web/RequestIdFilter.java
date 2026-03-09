@@ -42,7 +42,7 @@ public class RequestIdFilter extends OncePerRequestFilter {
         String requestId = resolveRequestId(request);
         response.setHeader(REQUEST_ID_HEADER, requestId);
         MDC.put(MDC_KEY, requestId);
-        ReqContext.hold(requestId);
+        ReqContext.hold(requestId, resolveClientIp(request), request.getHeader("User-Agent"));
         long start = System.currentTimeMillis();
         try {
             filterChain.doFilter(request, response);
@@ -63,5 +63,14 @@ public class RequestIdFilter extends OncePerRequestFilter {
             return incoming;
         }
         return UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+    }
+
+    /** 客户端 IP：代理场景取 X-Forwarded-For 首段（最初客户端），否则取直连地址 */
+    private String resolveClientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }
