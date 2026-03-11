@@ -20,6 +20,12 @@ ashore:
     jwt-secret: ${ASHORE_JWT_SECRET:dev-secret-ashore-change-me-in-prod}
     # 会话有效期（天），同时是 JWT 过期与 Redis TTL
     expire-days: 30
+  oauth:
+    github:
+      # 为空表示未启用（端点返回 503001）；启用：注册 GitHub OAuth App 并注入环境变量
+      client-id: ${GITHUB_OAUTH_CLIENT_ID:}
+      client-secret: ${GITHUB_OAUTH_CLIENT_SECRET:}
+      redirect-uri: ${GITHUB_OAUTH_REDIRECT_URI:http://127.0.0.1:8080/api/v1/auth/oauth/github/callback}
 
 logging:
   pattern:

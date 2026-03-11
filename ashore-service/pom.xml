@@ -46,6 +46,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-json</artifactId>
         </dependency>
+        <!-- GitHub OAuth 回调的 HTTP 调用（RestClient） -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+        </dependency>
         <!-- Flyway：迁移脚本与依赖都归属持久化层模块（web 经传递依赖获得） -->
         <dependency>
             <groupId>org.flywaydb</groupId>

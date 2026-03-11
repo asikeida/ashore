@@ -40,7 +40,10 @@ public enum StatusEnum implements Status {
     NOT_FOUND(404001, "资源不存在"),
 
     /** 未预期异常的对外统一文案 */
-    ERROR(500000, "服务异常，请稍后重试");
+    ERROR(500000, "服务异常，请稍后重试"),
+
+    /** 功能存在但服务端未启用（如 OAuth 凭证未配置） */
+    SERVICE_DISABLED(503001, "该登录方式暂未启用");
 
     private final int code;
 
