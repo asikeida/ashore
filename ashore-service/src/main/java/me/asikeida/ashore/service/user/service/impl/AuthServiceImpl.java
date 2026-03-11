@@ -11,6 +11,7 @@ import me.asikeida.ashore.service.user.converter.UserConverter;
 import me.asikeida.ashore.service.user.repository.entity.UserDO;
 import me.asikeida.ashore.service.user.repository.mapper.UserMapper;
 import me.asikeida.ashore.service.user.service.AuthService;
+import me.asikeida.ashore.service.user.service.LoginAuditService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -22,9 +23,13 @@ public class AuthServiceImpl implements AuthService {
 
     private final PasswordEncoder passwordEncoder;
 
-    public AuthServiceImpl(UserMapper userMapper, PasswordEncoder passwordEncoder) {
+    private final LoginAuditService loginAuditService;
+
+    public AuthServiceImpl(UserMapper userMapper, PasswordEncoder passwordEncoder,
+                           LoginAuditService loginAuditService) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
+        this.loginAuditService = loginAuditService;
     }
 
     @Override
@@ -54,14 +59,24 @@ public class AuthServiceImpl implements AuthService {
     public UserVo login(LoginReq req) {
         UserDO user = userMapper.selectOne(new LambdaQueryWrapper<UserDO>()
                 .eq(UserDO::getAccount, req.account()));
+
         // 账号不存在 / OAuth 无密码用户 / 密码错误：三种情况同一文案，防账号枚举
-        if (user == null || user.getPasswordHash() == null
+        if (user == null) {
+            loginAuditService.record(null, req.account(), false, LoginAuditService.REASON_ACCOUNT_NOT_FOUND);
+            throw ExceptionUtil.of(StatusEnum.LOGIN_FAILED);
+        }
+        if (user.getPasswordHash() == null
                 || !passwordEncoder.matches(req.password(), user.getPasswordHash())) {
+            loginAuditService.record(user.getId(), req.account(), false,
+                    LoginAuditService.REASON_PASSWORD_MISMATCH);
             throw ExceptionUtil.of(StatusEnum.LOGIN_FAILED);
         }
         if (UserDO.STATUS_BANNED.equals(user.getStatus())) {
+            loginAuditService.record(user.getId(), req.account(), false, LoginAuditService.REASON_BANNED);
             throw ExceptionUtil.of(StatusEnum.ACCOUNT_BANNED);
         }
+
+        loginAuditService.record(user.getId(), req.account(), true, null);
         return UserConverter.toVo(user);
     }
 

@@ -11,7 +11,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import me.asikeida.ashore.api.context.LoginUser;
+import me.asikeida.ashore.service.user.repository.entity.UserLoginAuditDO;
+import me.asikeida.ashore.service.user.repository.mapper.UserLoginAuditMapper;
+import me.asikeida.ashore.service.user.service.LoginAuditService;
 import me.asikeida.ashore.service.user.service.SessionService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +45,9 @@ class AuthControllerTests {
 
     @MockitoBean
     private SessionService sessionService;
+
+    @Autowired
+    private UserLoginAuditMapper auditMapper;
 
     @BeforeEach
     void stubSessionIssuance() {
@@ -72,6 +79,14 @@ class AuthControllerTests {
                 .andExpect(cookie().exists(SessionService.COOKIE_NAME))
                 .andExpect(cookie().value(SessionService.COOKIE_NAME, "stub-token"))
                 .andExpect(cookie().httpOnly(SessionService.COOKIE_NAME, true));
+
+        // 登录成功产生审计：IP 可追溯（MockMvc 直连为 127.0.0.1）
+        UserLoginAuditDO audit = auditMapper.selectOne(new LambdaQueryWrapper<UserLoginAuditDO>()
+                .eq(UserLoginAuditDO::getAccount, account));
+        org.assertj.core.api.Assertions.assertThat(audit.getSuccess()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(audit.getUserId()).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(audit.getIp()).isEqualTo("127.0.0.1");
+        org.assertj.core.api.Assertions.assertThat(audit.getRequestId()).isNotBlank();
     }
 
     @Test
@@ -135,5 +150,20 @@ class AuthControllerTests {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status.code").value(401002))
                 .andExpect(jsonPath("$.status.msg").value("账号或密码错误"));
+
+        // 两次失败各有审计：密码错误（关联到真实用户）与账号不存在（user_id 为空）
+        var wrongPwdAudit = auditMapper.selectOne(new LambdaQueryWrapper<UserLoginAuditDO>()
+                .eq(UserLoginAuditDO::getAccount, account)
+                .eq(UserLoginAuditDO::getSuccess, false)
+                .eq(UserLoginAuditDO::getFailReason, LoginAuditService.REASON_PASSWORD_MISMATCH));
+        org.assertj.core.api.Assertions.assertThat(wrongPwdAudit).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(wrongPwdAudit.getUserId()).isNotNull();
+
+        var ghostAudit = auditMapper.selectOne(new LambdaQueryWrapper<UserLoginAuditDO>()
+                .eq(UserLoginAuditDO::getSuccess, false)
+                .eq(UserLoginAuditDO::getFailReason, LoginAuditService.REASON_ACCOUNT_NOT_FOUND));
+        org.assertj.core.api.Assertions.assertThat(ghostAudit).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(ghostAudit.getUserId()).isNull();
+        org.assertj.core.api.Assertions.assertThat(ghostAudit.getRequestId()).isNotBlank();
     }
 }
