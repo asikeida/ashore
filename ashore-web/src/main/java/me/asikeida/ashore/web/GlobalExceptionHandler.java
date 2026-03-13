@@ -100,6 +100,7 @@ public class GlobalExceptionHandler {
             case 401 -> 401;
             case 403 -> 403;
             case 404 -> 404;
+            case 503 -> 503;
             default -> 500;
         };
     }
