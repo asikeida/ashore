@@ -82,6 +82,14 @@ class GlobalExceptionHandlerTests {
     }
 
     @Test
+    void missingRequestParameterMapsToBadRequest() throws Exception {
+        // 缺少必要参数走专项处理器（审查 R3），不落 500 兜底
+        mvc.perform(get("/demo/need-param"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status.code").value(400001));
+    }
+
+    @Test
     void unexpectedExceptionReturnsGenericMessageWithoutLeakingDetail() throws Exception {
         mvc.perform(get("/demo/boom"))
                 .andExpect(status().isInternalServerError())
@@ -117,6 +125,11 @@ class GlobalExceptionHandlerTests {
         @GetMapping("/demo/static-missing")
         public ResVo<Void> staticMissing() throws NoResourceFoundException {
             throw new NoResourceFoundException(HttpMethod.GET, "static/path.png");
+        }
+
+        @GetMapping("/demo/need-param")
+        public ResVo<String> needParam(@org.springframework.web.bind.annotation.RequestParam String token) {
+            return ResVo.ok(token);
         }
 
         @GetMapping("/demo/boom")

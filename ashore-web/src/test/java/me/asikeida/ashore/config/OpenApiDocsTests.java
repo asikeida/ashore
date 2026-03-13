@@ -15,7 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * /v3/api-docs 是 Apifox 接口同步的数据源（.agents/rules/07），必须稳定可用。
  * 健康明细断言只验证组件存在（测试环境无 Redis，redis 组件应为 DOWN，状态不在此断言）。
  */
-@SpringBootTest
+@SpringBootTest(properties = "ashore.session.jwt-secret=review-p0-secret")
 @AutoConfigureMockMvc
 class OpenApiDocsTests {
 

@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -64,6 +65,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ResVo<Void>> handleUnreadable(HttpMessageNotReadableException e) {
         log.warn("请求体解析失败：{}", e.getMessage());
+        return ResponseEntity.badRequest().body(ResVo.fail(StatusEnum.PARAM_ERROR));
+    }
+
+    /** 缺少必要参数（@RequestParam required 默认值）：400，防兜底误吞为 500（审查 R3） */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ResVo<Void>> handleMissingParam(MissingServletRequestParameterException e) {
+        log.warn("缺少必要参数：{}", e.getParameterName());
         return ResponseEntity.badRequest().body(ResVo.fail(StatusEnum.PARAM_ERROR));
     }
 

@@ -25,7 +25,8 @@ import org.springframework.test.web.servlet.MockMvc;
         "spring.datasource.url=jdbc:h2:mem:authinterceptor;DB_CLOSE_DELAY=-1;MODE=MySQL",
         "spring.datasource.driver-class-name=org.h2.Driver",
         "spring.datasource.username=sa",
-        "spring.datasource.password="
+        "spring.datasource.password=",
+        "ashore.session.jwt-secret=review-p0-secret"
 })
 @AutoConfigureMockMvc
 class AuthInterceptorTests {

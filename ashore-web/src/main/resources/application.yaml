@@ -16,8 +16,9 @@ server:
 
 ashore:
   session:
-    # JWT 签名密钥：生产环境必须通过 ASHORE_JWT_SECRET 环境变量注入并更换
-    jwt-secret: ${ASHORE_JWT_SECRET:dev-secret-ashore-change-me-in-prod}
+    # JWT 签名密钥：必须通过 ASHORE_JWT_SECRET 环境变量注入。
+    # 刻意无默认值——漏配即启动失败（fail-fast），禁止生产静默使用仓库内已知密钥。
+    jwt-secret: ${ASHORE_JWT_SECRET}
     # 会话有效期（天），同时是 JWT 过期与 Redis TTL
     expire-days: 30
   oauth:
