@@ -30,6 +30,9 @@ public class SessionServiceImpl implements SessionService {
 
     private static final String SESSION_KEY_PREFIX = "ashore:session:";
 
+    /** 用户 → 会话集合反查索引（ashore:user_sessions:{uid}），支撑按用户吊销（审查 R1） */
+    private static final String USER_SESSIONS_KEY_PREFIX = "ashore:user_sessions:";
+
     private final StringRedisTemplate redisTemplate;
 
     private final ObjectMapper objectMapper;
@@ -54,6 +57,10 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public IssuedSession issue(LoginUser user) {
+        // uid 是反查索引的键：空 uid 会产生无法按用户吊销的孤儿会话，直接拒绝
+        if (user.userId() == null) {
+            throw new IllegalArgumentException("会话签发要求非空 userId");
+        }
         String sessionId = UUID.randomUUID().toString();
         Date expiresAt = Date.from(Instant.now().plus(expireDays, java.time.temporal.ChronoUnit.DAYS));
         String token = JWT.create()
@@ -69,6 +76,9 @@ public class SessionServiceImpl implements SessionService {
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new IllegalStateException("会话序列化失败", e);
         }
+        // 维护用户→会话反查索引：集合 TTL 比会话多 1 天，容忍最后一批会话的自然过期
+        redisTemplate.opsForSet().add(USER_SESSIONS_KEY_PREFIX + user.userId(), sessionId);
+        redisTemplate.expire(USER_SESSIONS_KEY_PREFIX + user.userId(), expireDays + 1, TimeUnit.DAYS);
         return new IssuedSession(token, TimeUnit.DAYS.toSeconds(expireDays));
     }
 
@@ -95,10 +105,27 @@ public class SessionServiceImpl implements SessionService {
     public void revoke(String token) {
         try {
             DecodedJWT jwt = JWT.require(algorithm).build().verify(token);
-            redisTemplate.delete(SESSION_KEY_PREFIX + jwt.getClaim("sid").asString());
+            String sessionId = jwt.getClaim("sid").asString();
+            redisTemplate.delete(SESSION_KEY_PREFIX + sessionId);
+            redisTemplate.opsForSet().remove(
+                    USER_SESSIONS_KEY_PREFIX + jwt.getClaim("uid").asLong(), sessionId);
         } catch (JWTVerificationException e) {
             // token 本身已无效（过期/伪造），无需清理
             log.warn("登出时令牌已无效，忽略：{}", e.getMessage());
         }
+    }
+
+    @Override
+    public void revokeAllForUser(Long userId) {
+        String setKey = USER_SESSIONS_KEY_PREFIX + userId;
+        java.util.Set<String> sessionIds = redisTemplate.opsForSet().members(setKey);
+        if (sessionIds != null && !sessionIds.isEmpty()) {
+            java.util.List<String> sessionKeys = sessionIds.stream()
+                    .map(sid -> SESSION_KEY_PREFIX + sid)
+                    .toList();
+            redisTemplate.delete(sessionKeys);
+        }
+        redisTemplate.delete(setKey);
+        log.info("已吊销用户全部会话 userId={} count={}", userId, sessionIds == null ? 0 : sessionIds.size());
     }
 }

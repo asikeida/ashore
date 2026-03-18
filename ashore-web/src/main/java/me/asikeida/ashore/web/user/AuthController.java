@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.util.UUID;
 import me.asikeida.ashore.api.context.LoginUser;
 import me.asikeida.ashore.api.context.ReqContext;
+import me.asikeida.ashore.api.exception.BizException;
 import me.asikeida.ashore.api.exception.ExceptionUtil;
 import me.asikeida.ashore.api.resp.ResVo;
 import me.asikeida.ashore.api.vo.auth.LoginReq;
@@ -125,10 +126,20 @@ public class AuthController {
     /** GitHub 回调：校验 state → 换 token 拉用户 → 查/建本地用户 → 签发会话 → 回首页 */
     @GetMapping("/oauth/github/callback")
     public void githubCallback(
-            @RequestParam String code,
-            @RequestParam String state,
+            @RequestParam(value = "code", required = false) String code,
+            @RequestParam(value = "state", required = false) String state,
+            @RequestParam(value = "error", required = false) String oauthError,
             @CookieValue(value = OAUTH_STATE_COOKIE, required = false) String expectedState,
             HttpServletResponse response) throws IOException {
+        // 用户在 GitHub 拒绝授权：GitHub 回调携带 error 参数而非 code（审查 R3：明确 400 而非兜底 500；
+        // M5 前端就绪后改为重定向回登录页并带失败提示）
+        if (oauthError != null && !oauthError.isBlank()) {
+            throw new BizException(me.asikeida.ashore.api.resp.Status.of(
+                    me.asikeida.ashore.api.resp.StatusEnum.PARAM_ERROR.getCode(), "GitHub 授权未完成或已取消"));
+        }
+        if (code == null || code.isBlank() || state == null || state.isBlank()) {
+            throw ExceptionUtil.of(me.asikeida.ashore.api.resp.StatusEnum.PARAM_ERROR);
+        }
         if (expectedState == null || !expectedState.equals(state)) {
             throw ExceptionUtil.of(me.asikeida.ashore.api.resp.StatusEnum.PARAM_ERROR);
         }

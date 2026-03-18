@@ -31,6 +31,7 @@ import org.springframework.test.web.servlet.MvcResult;
         "spring.datasource.driver-class-name=org.h2.Driver",
         "spring.datasource.username=sa",
         "spring.datasource.password=",
+        "ashore.session.jwt-secret=review-p0-secret",
         "ashore.oauth.github.client-id=test-client",
         "ashore.oauth.github.client-secret=test-secret"
 })
@@ -75,6 +76,24 @@ class GitHubOAuthControllerTests {
                         .param("code", "good-code")
                         .param("state", "tampered")
                         .cookie(new Cookie("ashore_oauth_state", "expected-state")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status.code").value(400001));
+    }
+
+    @Test
+    void callbackWithUserDeniedErrorReturnsBadRequest() throws Exception {
+        // 用户在 GitHub 拒绝授权：error 参数路径（审查 R3）
+        mvc.perform(get("/api/v1/auth/oauth/github/callback")
+                        .param("error", "access_denied")
+                        .param("error_description", "The user has denied your application"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status.code").value(400001))
+                .andExpect(jsonPath("$.status.msg").value("GitHub 授权未完成或已取消"));
+    }
+
+    @Test
+    void callbackWithoutCodeAndStateReturnsBadRequest() throws Exception {
+        mvc.perform(get("/api/v1/auth/oauth/github/callback"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status.code").value(400001));
     }

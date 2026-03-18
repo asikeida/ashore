@@ -25,6 +25,13 @@ public interface SessionService {
     /** 吊销会话（登出）：删除 Redis 登记，token 即刻失效 */
     void revoke(String token);
 
+    /**
+     * 吊销某用户的全部会话（封禁 / 强制下线时调用）。
+     * <p><b>契约</b>：任何将用户置为 BANNED（或等效强下线语义）的操作必须调用本方法，
+     * 否则该用户存量会话在有效期内依然可用（代码审查 R1）。</p>
+     */
+    void revokeAllForUser(Long userId);
+
     /** 签发结果 */
     record IssuedSession(String token, long maxAgeSeconds) {
     }

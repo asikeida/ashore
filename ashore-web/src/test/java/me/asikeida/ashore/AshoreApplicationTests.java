@@ -10,7 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-@SpringBootTest
+@SpringBootTest(properties = "ashore.session.jwt-secret=review-p0-secret")
 class AshoreApplicationTests {
 
     @Test

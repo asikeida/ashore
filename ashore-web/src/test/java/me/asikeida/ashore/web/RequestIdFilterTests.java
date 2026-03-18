@@ -17,7 +17,7 @@ import org.springframework.test.web.servlet.MvcResult;
  * 请求标识过滤器测试：@AutoConfigureMockMvc 会装载容器中注册的 Filter Bean，
  * 因此这里跑的是真实过滤器链（含 MDC 写入与 ReqContext 清理）。
  */
-@SpringBootTest
+@SpringBootTest(properties = "ashore.session.jwt-secret=review-p0-secret")
 @AutoConfigureMockMvc
 class RequestIdFilterTests {
 
