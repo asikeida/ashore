@@ -16,6 +16,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
@@ -72,6 +73,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ResVo<Void>> handleMissingParam(MissingServletRequestParameterException e) {
         log.warn("缺少必要参数：{}", e.getParameterName());
+        return ResponseEntity.badRequest().body(ResVo.fail(StatusEnum.PARAM_ERROR));
+    }
+
+    /** 路径参数类型不匹配（如 /posts/{id} 传入非数字）：400，防兜底误吞 */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ResVo<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        log.warn("参数类型不匹配：{} = {}", e.getName(), e.getValue());
         return ResponseEntity.badRequest().body(ResVo.fail(StatusEnum.PARAM_ERROR));
     }
 
