@@ -39,6 +39,9 @@ public enum StatusEnum implements Status {
     /** 目标资源不存在或已删除 */
     NOT_FOUND(404001, "资源不存在"),
 
+    /** 当前状态不允许该操作（状态机非法流转） */
+    ILLEGAL_STATE(400003, "当前状态不允许该操作"),
+
     /** 未预期异常的对外统一文案 */
     ERROR(500000, "服务异常，请稍后重试"),
 
