@@ -1,16 +1,24 @@
 package me.asikeida.ashore.service.article.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import me.asikeida.ashore.api.context.LoginUser;
 import me.asikeida.ashore.api.enums.ArticleStatus;
 import me.asikeida.ashore.api.exception.ExceptionUtil;
 import me.asikeida.ashore.api.resp.StatusEnum;
 import me.asikeida.ashore.api.vo.post.EditPostReq;
 import me.asikeida.ashore.api.vo.post.PostDetailVo;
+import me.asikeida.ashore.api.vo.post.PostItemVo;
+import me.asikeida.ashore.api.vo.post.PostPageVo;
+import me.asikeida.ashore.api.vo.post.PostVersionVo;
 import me.asikeida.ashore.api.vo.post.PublishPostReq;
 import me.asikeida.ashore.api.vo.post.PostVo;
 import me.asikeida.ashore.service.article.repository.entity.ArticleDO;
@@ -22,6 +30,8 @@ import me.asikeida.ashore.service.article.repository.mapper.ArticleMapper;
 import me.asikeida.ashore.service.article.repository.mapper.ArticleTagMapper;
 import me.asikeida.ashore.service.article.repository.mapper.TagMapper;
 import me.asikeida.ashore.service.article.service.ArticleService;
+import me.asikeida.ashore.service.user.repository.entity.UserDO;
+import me.asikeida.ashore.service.user.repository.mapper.UserMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,12 +47,15 @@ public class ArticleServiceImpl implements ArticleService {
 
     private final ArticleTagMapper articleTagMapper;
 
+    private final UserMapper userMapper;
+
     public ArticleServiceImpl(ArticleMapper articleMapper, ArticleDetailMapper detailMapper,
-                              TagMapper tagMapper, ArticleTagMapper articleTagMapper) {
+                              TagMapper tagMapper, ArticleTagMapper articleTagMapper, UserMapper userMapper) {
         this.articleMapper = articleMapper;
         this.detailMapper = detailMapper;
         this.tagMapper = tagMapper;
         this.articleTagMapper = articleTagMapper;
+        this.userMapper = userMapper;
     }
 
     @Override
@@ -121,6 +134,78 @@ public class ArticleServiceImpl implements ArticleService {
                 latest == null ? null : latest.getVersion(),
                 String.valueOf(article.getAuthorId()),
                 article.getCreateTime() == null ? null : article.getCreateTime().toString());
+    }
+
+    @Override
+    public PostPageVo list(String cursor, Integer limit, String tagName) {
+        int pageSize = limit == null ? 20 : Math.min(Math.max(limit, 1), 50);
+
+        LambdaQueryWrapper<ArticleDO> wrapper = new LambdaQueryWrapper<ArticleDO>()
+                .eq(ArticleDO::getStatus, ArticleStatus.ONLINE.name())
+                .eq(ArticleDO::getDeleted, 0);
+
+        if (tagName != null && !tagName.isBlank()) {
+            TagDO tag = tagMapper.selectOne(new LambdaQueryWrapper<TagDO>().eq(TagDO::getName, tagName.trim()));
+            if (tag == null) {
+                return new PostPageVo(null, List.of());
+            }
+            List<Long> ids = articleTagMapper.selectList(new LambdaQueryWrapper<ArticleTagDO>()
+                            .eq(ArticleTagDO::getTagId, tag.getId()))
+                    .stream().map(ArticleTagDO::getArticleId).toList();
+            if (ids.isEmpty()) {
+                return new PostPageVo(null, List.of());
+            }
+            wrapper.in(ArticleDO::getId, ids);
+        }
+
+        if (cursor != null && !cursor.isBlank()) {
+            CursorKey key = parseCursor(cursor);
+            // 三字段游标：(topping, create_time, id) 整体小于游标，杜绝深分页 offset 扫描
+            wrapper.and(w -> w
+                    .lt(ArticleDO::getToppingStat, key.topping())
+                    .or(x -> x.eq(ArticleDO::getToppingStat, key.topping())
+                            .lt(ArticleDO::getCreateTime, key.createTime()))
+                    .or(x -> x.eq(ArticleDO::getToppingStat, key.topping())
+                            .eq(ArticleDO::getCreateTime, key.createTime())
+                            .lt(ArticleDO::getId, key.id())));
+        }
+
+        wrapper.orderByDesc(ArticleDO::getToppingStat)
+                .orderByDesc(ArticleDO::getCreateTime)
+                .orderByDesc(ArticleDO::getId)
+                .last("LIMIT " + pageSize);
+
+        List<ArticleDO> articles = articleMapper.selectList(wrapper);
+        if (articles.isEmpty()) {
+            return new PostPageVo(null, List.of());
+        }
+
+        List<Long> articleIds = articles.stream().map(ArticleDO::getId).toList();
+        Map<Long, List<String>> tagsByArticle = tagsByArticle(articleIds);
+        Map<Long, String> nicknameByAuthor = nicknamesByAuthor(
+                articles.stream().map(ArticleDO::getAuthorId).distinct().toList());
+
+        List<PostItemVo> items = articles.stream()
+                .map(a -> new PostItemVo(String.valueOf(a.getId()), a.getTitle(),
+                        tagsByArticle.getOrDefault(a.getId(), List.of()),
+                        nicknameByAuthor.get(a.getAuthorId()),
+                        a.getCreateTime() == null ? null : a.getCreateTime().toString()))
+                .toList();
+
+        String nextCursor = articles.size() == pageSize ? toCursor(articles.get(articles.size() - 1)) : null;
+        return new PostPageVo(nextCursor, items);
+    }
+
+    @Override
+    public List<PostVersionVo> versions(Long articleId, LoginUser operator) {
+        requireManaged(articleId, operator);
+        return detailMapper.selectList(new LambdaQueryWrapper<ArticleDetailDO>()
+                        .eq(ArticleDetailDO::getArticleId, articleId)
+                        .orderByDesc(ArticleDetailDO::getVersion))
+                .stream()
+                .map(d -> new PostVersionVo(d.getVersion(),
+                        d.getCreateTime() == null ? null : d.getCreateTime().toString(), d.getContent()))
+                .toList();
     }
 
     // ---------- 内部 ----------
@@ -229,5 +314,58 @@ public class ArticleServiceImpl implements ArticleService {
     private PostVo toVo(ArticleDO article, List<String> tags) {
         return new PostVo(String.valueOf(article.getId()), article.getTitle(), article.getStatus(),
                 tags, article.getCreateTime() == null ? null : article.getCreateTime().toString());
+    }
+
+    // ---------- 游标与批量组装 ----------
+
+    /** 游标明文格式：{topping}_{createTimeISO}_{id}（ISO 时间无下划线，可无损往返） */
+    private record CursorKey(int topping, LocalDateTime createTime, long id) {
+    }
+
+    private CursorKey parseCursor(String cursor) {
+        String[] parts = cursor.split("_", 3);
+        if (parts.length != 3) {
+            throw ExceptionUtil.of(StatusEnum.PARAM_ERROR);
+        }
+        try {
+            return new CursorKey(Integer.parseInt(parts[0]), LocalDateTime.parse(parts[1]),
+                    Long.parseLong(parts[2]));
+        } catch (NumberFormatException | java.time.format.DateTimeParseException e) {
+            throw ExceptionUtil.of(StatusEnum.PARAM_ERROR);
+        }
+    }
+
+    private String toCursor(ArticleDO article) {
+        return article.getToppingStat() + "_" + article.getCreateTime() + "_" + article.getId();
+    }
+
+    /** 批量取标签：两次批量查询组装（避免逐条 N+1） */
+    private Map<Long, List<String>> tagsByArticle(List<Long> articleIds) {
+        List<ArticleTagDO> links = articleTagMapper.selectList(new LambdaQueryWrapper<ArticleTagDO>()
+                .in(ArticleTagDO::getArticleId, articleIds));
+        if (links.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, String> tagNames = tagMapper.selectBatchIds(
+                        links.stream().map(ArticleTagDO::getTagId).distinct().toList())
+                .stream().collect(Collectors.toMap(TagDO::getId, TagDO::getName));
+        Map<Long, List<String>> result = new HashMap<>();
+        for (ArticleTagDO link : links) {
+            String name = tagNames.get(link.getTagId());
+            if (name != null) {
+                result.computeIfAbsent(link.getArticleId(), k -> new ArrayList<>()).add(name);
+            }
+        }
+        return result;
+    }
+
+    /** 批量取作者昵称 */
+    private Map<Long, String> nicknamesByAuthor(List<Long> authorIds) {
+        if (authorIds.isEmpty()) {
+            return Map.of();
+        }
+        return userMapper.selectBatchIds(authorIds).stream()
+                .collect(Collectors.toMap(UserDO::getId, UserDO::getNickname, (a, b) -> a,
+                        () -> new HashMap<>()));
     }
 }

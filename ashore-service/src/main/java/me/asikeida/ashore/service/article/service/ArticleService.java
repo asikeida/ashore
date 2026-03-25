@@ -1,8 +1,11 @@
 package me.asikeida.ashore.service.article.service;
 
+import java.util.List;
 import me.asikeida.ashore.api.context.LoginUser;
 import me.asikeida.ashore.api.vo.post.EditPostReq;
 import me.asikeida.ashore.api.vo.post.PostDetailVo;
+import me.asikeida.ashore.api.vo.post.PostPageVo;
+import me.asikeida.ashore.api.vo.post.PostVersionVo;
 import me.asikeida.ashore.api.vo.post.PublishPostReq;
 import me.asikeida.ashore.api.vo.post.PostVo;
 
@@ -32,4 +35,16 @@ public interface ArticleService {
 
     /** 详情（M3-3 完整实现，此处为编辑回显复用） */
     PostDetailVo detail(Long articleId, LoginUser operator);
+
+    /**
+     * 公开列表：仅 ONLINE 且未删除，三字段游标分页（topping_stat, create_time, id）。
+     *
+     * @param cursor  上一页返回的 nextCursor；null 表示第一页
+     * @param limit   页大小，缺省 20，上限 50
+     * @param tagName 标签名筛选，可空
+     */
+    PostPageVo list(String cursor, Integer limit, String tagName);
+
+    /** 正文版本历史（作者/管理员；新版本在前） */
+    List<PostVersionVo> versions(Long articleId, LoginUser operator);
 }
