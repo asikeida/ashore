@@ -12,6 +12,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import me.asikeida.ashore.api.context.LoginUser;
 import me.asikeida.ashore.api.enums.ArticleStatus;
+import me.asikeida.ashore.api.enums.FootTypeEnum;
 import me.asikeida.ashore.api.exception.ExceptionUtil;
 import me.asikeida.ashore.api.resp.StatusEnum;
 import me.asikeida.ashore.api.vo.post.EditPostReq;
@@ -30,6 +31,9 @@ import me.asikeida.ashore.service.article.repository.mapper.ArticleMapper;
 import me.asikeida.ashore.service.article.repository.mapper.ArticleTagMapper;
 import me.asikeida.ashore.service.article.repository.mapper.TagMapper;
 import me.asikeida.ashore.service.article.service.ArticleService;
+import me.asikeida.ashore.service.interact.repository.entity.UserFootDO;
+import me.asikeida.ashore.service.interact.repository.mapper.UserFootMapper;
+import me.asikeida.ashore.service.interact.service.CountService;
 import me.asikeida.ashore.service.user.repository.entity.UserDO;
 import me.asikeida.ashore.service.user.repository.mapper.UserMapper;
 import org.springframework.dao.DuplicateKeyException;
@@ -49,13 +53,20 @@ public class ArticleServiceImpl implements ArticleService {
 
     private final UserMapper userMapper;
 
+    private final CountService countService;
+
+    private final UserFootMapper footMapper;
+
     public ArticleServiceImpl(ArticleMapper articleMapper, ArticleDetailMapper detailMapper,
-                              TagMapper tagMapper, ArticleTagMapper articleTagMapper, UserMapper userMapper) {
+                              TagMapper tagMapper, ArticleTagMapper articleTagMapper, UserMapper userMapper,
+                              CountService countService, UserFootMapper footMapper) {
         this.articleMapper = articleMapper;
         this.detailMapper = detailMapper;
         this.tagMapper = tagMapper;
         this.articleTagMapper = articleTagMapper;
         this.userMapper = userMapper;
+        this.countService = countService;
+        this.footMapper = footMapper;
     }
 
     @Override
@@ -129,11 +140,24 @@ public class ArticleServiceImpl implements ArticleService {
             throw ExceptionUtil.of(StatusEnum.NOT_FOUND);
         }
         ArticleDetailDO latest = latestDetail(articleId);
+        me.asikeida.ashore.service.interact.service.CountService.Counts counts = countService.counts(articleId);
         return new PostDetailVo(String.valueOf(article.getId()), article.getTitle(), article.getStatus(),
                 tagNames(articleId), latest == null ? null : latest.getContent(),
                 latest == null ? null : latest.getVersion(),
                 String.valueOf(article.getAuthorId()),
-                article.getCreateTime() == null ? null : article.getCreateTime().toString());
+                article.getCreateTime() == null ? null : article.getCreateTime().toString(),
+                counts.praise(), counts.collect(), counts.comment(), counts.read(),
+                operator != null && isActiveFoot(articleId, FootTypeEnum.PRAISE, operator.userId()),
+                operator != null && isActiveFoot(articleId, FootTypeEnum.COLLECT, operator.userId()));
+    }
+
+    /** 当前用户对该面经的足迹是否有效（未登录返回 false） */
+    private boolean isActiveFoot(Long articleId, FootTypeEnum type, Long userId) {
+        UserFootDO row = footMapper.selectOne(new LambdaQueryWrapper<UserFootDO>()
+                .eq(UserFootDO::getUserId, userId)
+                .eq(UserFootDO::getArticleId, articleId)
+                .eq(UserFootDO::getType, type.name()));
+        return row != null && row.getState() == 1;
     }
 
     @Override

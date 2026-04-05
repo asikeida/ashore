@@ -1,5 +1,6 @@
 package me.asikeida.ashore.web.article;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -14,6 +15,8 @@ import me.asikeida.ashore.service.article.repository.entity.ArticleDO;
 import me.asikeida.ashore.service.article.repository.entity.ArticleDetailDO;
 import me.asikeida.ashore.service.article.repository.mapper.ArticleDetailMapper;
 import me.asikeida.ashore.service.article.repository.mapper.ArticleMapper;
+import me.asikeida.ashore.service.interact.service.CountService;
+import me.asikeida.ashore.service.interact.service.FootService;
 import me.asikeida.ashore.service.user.repository.entity.UserDO;
 import me.asikeida.ashore.service.user.repository.mapper.UserMapper;
 import me.asikeida.ashore.service.user.service.SessionService;
@@ -50,6 +53,13 @@ class PostControllerTests {
     @MockitoBean
     private SessionService sessionService;
 
+    /** 计数依赖 Redis，web 测试环境以桩替换（计数真实行为由 M4-5 远端 E2E 覆盖） */
+    @MockitoBean
+    private CountService countService;
+
+    @MockitoBean
+    private FootService footService;
+
     @Autowired
     private UserMapper userMapper;
 
@@ -76,6 +86,10 @@ class PostControllerTests {
         when(sessionService.validate("author-token")).thenReturn(new LoginUser(authorId, "author", "USER"));
         when(sessionService.validate("stranger-token")).thenReturn(new LoginUser(strangerId, "stranger", "USER"));
         when(sessionService.validate("admin-token")).thenReturn(new LoginUser(adminId, "admin", "ADMIN"));
+        // 详情读取会经 CountService 懒加载计数（依赖 Redis），桩替换为固定值
+        when(countService.counts(any())).thenReturn(new CountService.Counts(5, 2, 3, 10));
+        when(footService.toggle(any(), any(), any()))
+                .thenReturn(new FootService.ToggleResult(true, 6));
     }
 
     private Long insertUser(String name) {
@@ -199,6 +213,16 @@ class PostControllerTests {
         mvc.perform(get("/api/v1/posts/not-a-number"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status.code").value(400001));
+    }
+
+    @Test
+    void praiseEndpointReturnsToggleState() throws Exception {
+        String id = publishAsAuthor("点赞端点测试" + System.nanoTime());
+
+        mvc.perform(post("/api/v1/posts/" + id + "/praise").cookie(new Cookie(COOKIE, "author-token")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status.code").value(0))
+                .andExpect(jsonPath("$.result").value(true));
     }
 
     private void assertThatStatus(ArticleDO article, String expected) {
