@@ -8,9 +8,11 @@ import me.asikeida.ashore.api.vo.post.EditPostReq;
 import me.asikeida.ashore.api.vo.post.PostDetailVo;
 import me.asikeida.ashore.api.vo.post.PublishPostReq;
 import me.asikeida.ashore.api.vo.post.PostVo;
+import me.asikeida.ashore.api.enums.FootTypeEnum;
 import me.asikeida.ashore.core.permission.Permission;
 import me.asikeida.ashore.core.permission.UserRole;
 import me.asikeida.ashore.service.article.service.ArticleService;
+import me.asikeida.ashore.service.interact.service.FootService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,8 +34,11 @@ public class PostController {
 
     private final ArticleService articleService;
 
-    public PostController(ArticleService articleService) {
+    private final FootService footService;
+
+    public PostController(ArticleService articleService, FootService footService) {
         this.articleService = articleService;
+        this.footService = footService;
     }
 
     @Operation(summary = "发布面经", description = "需登录；所有人发文进 REVIEW 审核；标签不存在自动创建")
@@ -75,6 +80,22 @@ public class PostController {
     public ResVo<Void> submit(@PathVariable Long id) {
         articleService.submit(id, current());
         return ResVo.ok();
+    }
+
+    /** 点赞/取消点赞（切换，返回当前有效状态） */
+    @Operation(summary = "点赞/取消点赞", description = "需登录；切换语义，返回切换后的有效状态")
+    @Permission
+    @PostMapping("/{id}/praise")
+    public ResVo<Boolean> praise(@PathVariable Long id) {
+        return ResVo.ok(footService.toggle(id, FootTypeEnum.PRAISE, current()).active());
+    }
+
+    /** 收藏/取消收藏（切换，返回当前有效状态） */
+    @Operation(summary = "收藏/取消收藏", description = "需登录；切换语义，返回切换后的有效状态")
+    @Permission
+    @PostMapping("/{id}/collect")
+    public ResVo<Boolean> collect(@PathVariable Long id) {
+        return ResVo.ok(footService.toggle(id, FootTypeEnum.COLLECT, current()).active());
     }
 
     /** 详情（公开；非上线状态仅作者/管理员可见） */
