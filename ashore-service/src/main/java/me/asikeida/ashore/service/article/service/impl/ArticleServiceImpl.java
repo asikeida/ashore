@@ -33,9 +33,12 @@ import me.asikeida.ashore.service.article.repository.mapper.TagMapper;
 import me.asikeida.ashore.service.article.service.ArticleService;
 import me.asikeida.ashore.service.interact.repository.entity.UserFootDO;
 import me.asikeida.ashore.service.interact.repository.mapper.UserFootMapper;
+import me.asikeida.ashore.api.model.event.NotifyMsgEvent;
+import me.asikeida.ashore.api.enums.NotifyTypeEnum;
 import me.asikeida.ashore.service.interact.service.CountService;
 import me.asikeida.ashore.service.user.repository.entity.UserDO;
 import me.asikeida.ashore.service.user.repository.mapper.UserMapper;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,9 +60,12 @@ public class ArticleServiceImpl implements ArticleService {
 
     private final UserFootMapper footMapper;
 
+    private final ApplicationEventPublisher eventPublisher;
+
     public ArticleServiceImpl(ArticleMapper articleMapper, ArticleDetailMapper detailMapper,
                               TagMapper tagMapper, ArticleTagMapper articleTagMapper, UserMapper userMapper,
-                              CountService countService, UserFootMapper footMapper) {
+                              CountService countService, UserFootMapper footMapper,
+                              ApplicationEventPublisher eventPublisher) {
         this.articleMapper = articleMapper;
         this.detailMapper = detailMapper;
         this.tagMapper = tagMapper;
@@ -67,6 +73,7 @@ public class ArticleServiceImpl implements ArticleService {
         this.userMapper = userMapper;
         this.countService = countService;
         this.footMapper = footMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -112,6 +119,9 @@ public class ArticleServiceImpl implements ArticleService {
     public void online(Long articleId, LoginUser operator) {
         ArticleDO article = requireManaged(articleId, operator);
         transition(article, ArticleStatus.ONLINE);
+        // 审核结果通知（SYSTEM）：异路径，即使作者当前角色是管理员也照常通知
+        eventPublisher.publishEvent(new NotifyMsgEvent(article.getAuthorId(), operator.userId(),
+                NotifyTypeEnum.SYSTEM, articleId, null, "你发布的面经《" + article.getTitle() + "》已审核通过上线"));
     }
 
     @Override

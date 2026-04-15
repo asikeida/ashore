@@ -18,10 +18,13 @@ import me.asikeida.ashore.service.article.repository.entity.ArticleDO;
 import me.asikeida.ashore.service.article.repository.mapper.ArticleMapper;
 import me.asikeida.ashore.service.interact.repository.entity.CommentDO;
 import me.asikeida.ashore.service.interact.repository.mapper.CommentMapper;
+import me.asikeida.ashore.api.enums.NotifyTypeEnum;
+import me.asikeida.ashore.api.model.event.NotifyMsgEvent;
 import me.asikeida.ashore.service.interact.service.CountService;
 import me.asikeida.ashore.service.article.service.CommentService;
 import me.asikeida.ashore.service.user.repository.entity.UserDO;
 import me.asikeida.ashore.service.user.repository.mapper.UserMapper;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,18 +41,22 @@ public class CommentServiceImpl implements CommentService {
 
     private final CountService countService;
 
+    private final ApplicationEventPublisher eventPublisher;
+
     public CommentServiceImpl(CommentMapper commentMapper, ArticleMapper articleMapper,
-                              UserMapper userMapper, CountService countService) {
+                              UserMapper userMapper, CountService countService,
+                              ApplicationEventPublisher eventPublisher) {
         this.commentMapper = commentMapper;
         this.articleMapper = articleMapper;
         this.userMapper = userMapper;
         this.countService = countService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CommentReplyVo create(Long articleId, CreateCommentReq req, LoginUser commenter) {
-        requireArticle(articleId);
+        ArticleDO article = requireArticle(articleId);
 
         CommentDO comment = new CommentDO();
         comment.setArticleId(articleId);
@@ -69,6 +76,18 @@ public class CommentServiceImpl implements CommentService {
         }
         commentMapper.insert(comment);
         countService.incrComment(articleId, 1);
+
+        // 通知发布（旁路，异步消费）：回复→被回复人；评论→面经作者（自己操作自己不通知）
+        if (comment.getReplyUserId() != null && !comment.getReplyUserId().equals(comment.getUserId())) {
+            eventPublisher.publishEvent(new NotifyMsgEvent(comment.getReplyUserId(),
+                    comment.getUserId(), NotifyTypeEnum.REPLY, articleId, comment.getId(),
+                    comment.getContent()));
+        }
+        if (!article.getAuthorId().equals(comment.getUserId())) {
+            eventPublisher.publishEvent(new NotifyMsgEvent(article.getAuthorId(),
+                    comment.getUserId(), NotifyTypeEnum.COMMENT, articleId, comment.getId(),
+                    comment.getContent()));
+        }
 
         // 昵称从库补齐（LoginUser 不携带展示字段）
         UserDO commenterRow = userMapper.selectById(comment.getUserId());
@@ -140,13 +159,14 @@ public class CommentServiceImpl implements CommentService {
 
     // ---------- 内部 ----------
 
-    private void requireArticle(Long articleId) {
+    private ArticleDO requireArticle(Long articleId) {
         ArticleDO article = articleMapper.selectOne(new LambdaQueryWrapper<ArticleDO>()
                 .eq(ArticleDO::getId, articleId)
                 .eq(ArticleDO::getDeleted, 0));
         if (article == null) {
             throw ExceptionUtil.of(StatusEnum.NOT_FOUND);
         }
+        return article;
     }
 
     private CommentDO requireComment(Long commentId, Long articleId) {

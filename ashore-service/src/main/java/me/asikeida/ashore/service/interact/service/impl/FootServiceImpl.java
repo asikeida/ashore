@@ -14,7 +14,10 @@ import me.asikeida.ashore.service.interact.service.CountService;
 import me.asikeida.ashore.service.interact.service.FootService;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
+import me.asikeida.ashore.api.enums.NotifyTypeEnum;
+import me.asikeida.ashore.api.model.event.NotifyMsgEvent;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
@@ -34,12 +37,16 @@ public class FootServiceImpl implements FootService {
 
     private final CountService countService;
 
+    private final ApplicationEventPublisher eventPublisher;
+
     public FootServiceImpl(ObjectProvider<RedissonClient> redissonProvider, UserFootMapper footMapper,
-                           ArticleMapper articleMapper, CountService countService) {
+                           ArticleMapper articleMapper, CountService countService,
+                           ApplicationEventPublisher eventPublisher) {
         this.redissonProvider = redissonProvider;
         this.footMapper = footMapper;
         this.articleMapper = articleMapper;
         this.countService = countService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -47,7 +54,7 @@ public class FootServiceImpl implements FootService {
         if (!type.isToggleable()) {
             throw new IllegalArgumentException("仅切换型行为支持 toggle: " + type);
         }
-        requireArticle(articleId);
+        me.asikeida.ashore.service.article.repository.entity.ArticleDO article = requireArticle(articleId);
 
         RLock lock = redissonProvider.getObject()
                 .getLock("lock:foot:" + user.userId() + ":" + articleId + ":" + type.name());
@@ -70,6 +77,13 @@ public class FootServiceImpl implements FootService {
                 case COLLECT -> countService.incrCollect(articleId, delta);
                 default -> throw new IllegalStateException("unreachable");
             };
+            // 有效点赞/收藏通知面经作者（自己不通知；重复点赞由监听器去重）
+            if (active && !article.getAuthorId().equals(user.userId())) {
+                NotifyTypeEnum notifyType = type == FootTypeEnum.PRAISE
+                        ? NotifyTypeEnum.PRAISE : NotifyTypeEnum.COLLECT;
+                eventPublisher.publishEvent(new NotifyMsgEvent(article.getAuthorId(),
+                        user.userId(), notifyType, articleId, null, article.getTitle()));
+            }
             return new ToggleResult(active, Long.parseLong(newCount));
         } finally {
             lock.unlock();
@@ -120,12 +134,13 @@ public class FootServiceImpl implements FootService {
         return foot;
     }
 
-    private void requireArticle(Long articleId) {
+    private ArticleDO requireArticle(Long articleId) {
         var article = articleMapper.selectOne(new LambdaQueryWrapper<ArticleDO>()
                 .eq(ArticleDO::getId, articleId)
                 .eq(ArticleDO::getDeleted, 0));
         if (article == null) {
             throw ExceptionUtil.of(StatusEnum.NOT_FOUND);
         }
+        return article;
     }
 }
