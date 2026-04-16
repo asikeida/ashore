@@ -62,10 +62,13 @@ public class ArticleServiceImpl implements ArticleService {
 
     private final ApplicationEventPublisher eventPublisher;
 
+    private final me.asikeida.ashore.service.interact.service.RankService rankService;
+
     public ArticleServiceImpl(ArticleMapper articleMapper, ArticleDetailMapper detailMapper,
                               TagMapper tagMapper, ArticleTagMapper articleTagMapper, UserMapper userMapper,
                               CountService countService, UserFootMapper footMapper,
-                              ApplicationEventPublisher eventPublisher) {
+                              ApplicationEventPublisher eventPublisher,
+                              me.asikeida.ashore.service.interact.service.RankService rankService) {
         this.articleMapper = articleMapper;
         this.detailMapper = detailMapper;
         this.tagMapper = tagMapper;
@@ -74,6 +77,7 @@ public class ArticleServiceImpl implements ArticleService {
         this.countService = countService;
         this.footMapper = footMapper;
         this.eventPublisher = eventPublisher;
+        this.rankService = rankService;
     }
 
     @Override
@@ -90,6 +94,8 @@ public class ArticleServiceImpl implements ArticleService {
 
         insertDetail(article.getId(), req.content(), 1);
         bindTags(article.getId(), req.tags());
+        rankService.record(author.userId(), me.asikeida.ashore.api.enums.RankActionEnum.PUBLISH,
+                article.getId());
 
         return toVo(article, tagNames(article.getId()));
     }
@@ -119,7 +125,7 @@ public class ArticleServiceImpl implements ArticleService {
     public void online(Long articleId, LoginUser operator) {
         ArticleDO article = requireManaged(articleId, operator);
         transition(article, ArticleStatus.ONLINE);
-        // 审核结果通知（SYSTEM）：异路径，即使作者当前角色是管理员也照常通知
+        // 审核结果通知（SYSTEM）：即使作者当前角色是管理员也照常通知
         eventPublisher.publishEvent(new NotifyMsgEvent(article.getAuthorId(), operator.userId(),
                 NotifyTypeEnum.SYSTEM, articleId, null, "你发布的面经《" + article.getTitle() + "》已审核通过上线"));
     }
@@ -151,6 +157,7 @@ public class ArticleServiceImpl implements ArticleService {
         }
         ArticleDetailDO latest = latestDetail(articleId);
         me.asikeida.ashore.service.interact.service.CountService.Counts counts = countService.counts(articleId);
+        incrReadQuietly(articleId, operator);
         return new PostDetailVo(String.valueOf(article.getId()), article.getTitle(), article.getStatus(),
                 tagNames(articleId), latest == null ? null : latest.getContent(),
                 latest == null ? null : latest.getVersion(),
@@ -168,6 +175,20 @@ public class ArticleServiceImpl implements ArticleService {
                 .eq(UserFootDO::getArticleId, articleId)
                 .eq(UserFootDO::getType, type.name()));
         return row != null && row.getState() == 1;
+    }
+
+    /** 详情阅读计数与排行：仅登录用户计（防匿名刷数），旁路失败不反压 */
+    private void incrReadQuietly(Long articleId, LoginUser operator) {
+        if (operator == null) {
+            return;
+        }
+        try {
+            countService.incrRead(articleId, 1);
+            rankService.record(operator.userId(),
+                    me.asikeida.ashore.api.enums.RankActionEnum.READ, articleId);
+        } catch (Exception e) {
+            // 阅读计数是旁路
+        }
     }
 
     @Override

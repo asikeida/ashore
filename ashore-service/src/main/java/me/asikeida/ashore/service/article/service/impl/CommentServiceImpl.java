@@ -20,7 +20,9 @@ import me.asikeida.ashore.service.interact.repository.entity.CommentDO;
 import me.asikeida.ashore.service.interact.repository.mapper.CommentMapper;
 import me.asikeida.ashore.api.enums.NotifyTypeEnum;
 import me.asikeida.ashore.api.model.event.NotifyMsgEvent;
+import me.asikeida.ashore.api.enums.RankActionEnum;
 import me.asikeida.ashore.service.interact.service.CountService;
+import me.asikeida.ashore.service.interact.service.RankService;
 import me.asikeida.ashore.service.article.service.CommentService;
 import me.asikeida.ashore.service.user.repository.entity.UserDO;
 import me.asikeida.ashore.service.user.repository.mapper.UserMapper;
@@ -43,14 +45,17 @@ public class CommentServiceImpl implements CommentService {
 
     private final ApplicationEventPublisher eventPublisher;
 
+    private final RankService rankService;
+
     public CommentServiceImpl(CommentMapper commentMapper, ArticleMapper articleMapper,
                               UserMapper userMapper, CountService countService,
-                              ApplicationEventPublisher eventPublisher) {
+                              ApplicationEventPublisher eventPublisher, RankService rankService) {
         this.commentMapper = commentMapper;
         this.articleMapper = articleMapper;
         this.userMapper = userMapper;
         this.countService = countService;
         this.eventPublisher = eventPublisher;
+        this.rankService = rankService;
     }
 
     @Override
@@ -76,6 +81,7 @@ public class CommentServiceImpl implements CommentService {
         }
         commentMapper.insert(comment);
         countService.incrComment(articleId, 1);
+        rankService.record(comment.getUserId(), RankActionEnum.COMMENT, articleId);
 
         // 通知发布（旁路，异步消费）：回复→被回复人；评论→面经作者（自己操作自己不通知）
         if (comment.getReplyUserId() != null && !comment.getReplyUserId().equals(comment.getUserId())) {

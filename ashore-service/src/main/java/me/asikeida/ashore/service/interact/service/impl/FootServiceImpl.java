@@ -10,7 +10,9 @@ import me.asikeida.ashore.service.article.repository.entity.ArticleDO;
 import me.asikeida.ashore.service.article.repository.mapper.ArticleMapper;
 import me.asikeida.ashore.service.interact.repository.entity.UserFootDO;
 import me.asikeida.ashore.service.interact.repository.mapper.UserFootMapper;
+import me.asikeida.ashore.api.enums.RankActionEnum;
 import me.asikeida.ashore.service.interact.service.CountService;
+import me.asikeida.ashore.service.interact.service.RankService;
 import me.asikeida.ashore.service.interact.service.FootService;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -39,14 +41,17 @@ public class FootServiceImpl implements FootService {
 
     private final ApplicationEventPublisher eventPublisher;
 
+    private final RankService rankService;
+
     public FootServiceImpl(ObjectProvider<RedissonClient> redissonProvider, UserFootMapper footMapper,
                            ArticleMapper articleMapper, CountService countService,
-                           ApplicationEventPublisher eventPublisher) {
+                           ApplicationEventPublisher eventPublisher, RankService rankService) {
         this.redissonProvider = redissonProvider;
         this.footMapper = footMapper;
         this.articleMapper = articleMapper;
         this.countService = countService;
         this.eventPublisher = eventPublisher;
+        this.rankService = rankService;
     }
 
     @Override
@@ -72,6 +77,11 @@ public class FootServiceImpl implements FootService {
         try {
             boolean active = doToggle(articleId, type, user.userId());
             long delta = active ? 1 : -1;
+            rankService.record(user.userId(),
+                    type == FootTypeEnum.PRAISE
+                            ? (active ? RankActionEnum.PRAISE : RankActionEnum.PRAISE_CANCEL)
+                            : (active ? RankActionEnum.COLLECT : RankActionEnum.COLLECT_CANCEL),
+                    articleId);
             String newCount = switch (type) {
                 case PRAISE -> countService.incrPraise(articleId, delta);
                 case COLLECT -> countService.incrCollect(articleId, delta);
