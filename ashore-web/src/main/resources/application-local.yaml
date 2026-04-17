@@ -1,15 +1,17 @@
-# 本地开发环境：连接 compose 起的 MySQL（127.0.0.1:3307，见根目录 compose.yaml 与 .env.example）
-# 真实密码通过环境变量注入；默认值仅匹配 .env.example 的本地占位，非生产凭据。
+# 本地运行后端，经 13306 SSH 隧道连接固定开发库；从仓库根目录启动以读取 .env。
+# Redis 仍保留原本地连接设置，京东云 Redis 尚未部署。
 # 本地开发 profile：允许开发占位密钥；生产环境（无 profile 的主配置）无默认值，漏配即失败
 ashore:
   session:
     jwt-secret: dev-local-secret-change-me
 
 spring:
+  config:
+    import: optional:file:./.env[.properties]
   datasource:
-    url: ${ASHORE_DB_URL:jdbc:mysql://127.0.0.1:3307/ashore?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
-    username: ${ASHORE_DB_USERNAME:ashore}
-    password: ${ASHORE_DB_PASSWORD:change-me-local}
+    url: ${ASHORE_DB_URL:jdbc:mysql://${ASHORE_DB_HOST:127.0.0.1}:${ASHORE_DB_PORT:13306}/${ASHORE_DB_NAME:ashore_dev}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${ASHORE_DB_USERNAME}
+    password: ${ASHORE_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   flyway:
     enabled: true

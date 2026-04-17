@@ -1,21 +1,19 @@
-# 云端开发服务器 profile：连接 4-yuchen 上的 MySQL/Redis。
+# 云端开发 profile：连接京东云（mine-asikeida）共享 MySQL 的 ashore_dev 库。
 # 前置条件：
-# 1. 服务器已部署 deploy/dev-server/compose.yaml（端口仅绑服务器 127.0.0.1）
-# 2. 本地已建立 SSH 隧道：./scripts/dev-tunnel.sh（本地 13306/16379）
-# 3. 密码通过环境变量 ASHORE_SERVER_DB_PASSWORD 注入（与服务器 .env 的 ASHORE_DB_PASSWORD 一致），不设默认值
-# 云端开发 profile：开发占位密钥；生产必须经 ASHORE_JWT_SECRET 注入强随机值
+# 1. MySQL 由 /opt/projects-infra/mysql compose 管理（3306 仅绑服务器 127.0.0.1，公网不可达）
+# 2. 本地已建立 SSH 隧道：./scripts/dev-tunnel.sh（本地 13306 -> 京东云 3306）
+# 3. 密码经环境变量 ASHORE_DB_PASSWORD 注入（与服务器 secrets/ashore_dev.env 的 DB_PASSWORD 一致），不设默认值
+# 4. Redis：京东云暂未部署 Redis 容器，会话/计数等 Redis 功能待共享 Redis 就绪后接入（见 06 计划 M4 收尾说明）
 ashore:
   session:
     jwt-secret: dev-cloud-secret-change-me
 
 spring:
   datasource:
-    url: ${ASHORE_SERVER_DB_URL:jdbc:mysql://127.0.0.1:13306/ashore?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
-    username: ${ASHORE_SERVER_DB_USERNAME:ashore}
-    password: ${ASHORE_SERVER_DB_PASSWORD}
+    url: ${ASHORE_DB_URL:jdbc:mysql://127.0.0.1:13306/ashore_dev?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${ASHORE_DB_USERNAME:ashore_dev}
+    password: ${ASHORE_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
-  data:
-    redis:
-      # 经 SSH 隧道接入服务器 Redis（scripts/dev-tunnel.sh：本地 16379 -> 服务器 6379）
-      host: 127.0.0.1
-      port: 16379
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
