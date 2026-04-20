@@ -21,3 +21,5 @@ spring:
       host: 127.0.0.1
       port: 16379
       password: ${ASHORE_REDIS_PASSWORD:}
+  elasticsearch:
+    uris: ${ASHORE_SEARCH_URL:http://127.0.0.1:9200}

@@ -47,4 +47,7 @@ public interface ArticleService {
 
     /** 正文版本历史（作者/管理员；新版本在前） */
     List<PostVersionVo> versions(Long articleId, LoginUser operator);
+
+    /** 批量取面经标签（供搜索等读路径复用，两次批量查询防 N+1） */
+    java.util.Map<Long, List<String>> tagsFor(List<Long> articleIds);
 }

@@ -31,6 +31,7 @@ import me.asikeida.ashore.service.article.repository.mapper.ArticleMapper;
 import me.asikeida.ashore.service.article.repository.mapper.ArticleTagMapper;
 import me.asikeida.ashore.service.article.repository.mapper.TagMapper;
 import me.asikeida.ashore.service.article.service.ArticleService;
+import me.asikeida.ashore.service.article.service.EsSearchService;
 import me.asikeida.ashore.service.interact.repository.entity.UserFootDO;
 import me.asikeida.ashore.service.interact.repository.mapper.UserFootMapper;
 import me.asikeida.ashore.api.model.event.NotifyMsgEvent;
@@ -64,11 +65,14 @@ public class ArticleServiceImpl implements ArticleService {
 
     private final me.asikeida.ashore.service.interact.service.RankService rankService;
 
+    private final EsSearchService esSearchService;
+
     public ArticleServiceImpl(ArticleMapper articleMapper, ArticleDetailMapper detailMapper,
                               TagMapper tagMapper, ArticleTagMapper articleTagMapper, UserMapper userMapper,
                               CountService countService, UserFootMapper footMapper,
                               ApplicationEventPublisher eventPublisher,
-                              me.asikeida.ashore.service.interact.service.RankService rankService) {
+                              me.asikeida.ashore.service.interact.service.RankService rankService,
+                              EsSearchService esSearchService) {
         this.articleMapper = articleMapper;
         this.detailMapper = detailMapper;
         this.tagMapper = tagMapper;
@@ -78,6 +82,7 @@ public class ArticleServiceImpl implements ArticleService {
         this.footMapper = footMapper;
         this.eventPublisher = eventPublisher;
         this.rankService = rankService;
+        this.esSearchService = esSearchService;
     }
 
     @Override
@@ -96,6 +101,7 @@ public class ArticleServiceImpl implements ArticleService {
         bindTags(article.getId(), req.tags());
         rankService.record(author.userId(), me.asikeida.ashore.api.enums.RankActionEnum.PUBLISH,
                 article.getId());
+        syncIndex(article, req.content());
 
         return toVo(article, tagNames(article.getId()));
     }
@@ -118,6 +124,7 @@ public class ArticleServiceImpl implements ArticleService {
         articleMapper.updateById(article);
 
         bindTags(articleId, req.tags());
+        syncIndex(article, req.content());
         return toVo(article, tagNames(articleId));
     }
 
@@ -125,6 +132,7 @@ public class ArticleServiceImpl implements ArticleService {
     public void online(Long articleId, LoginUser operator) {
         ArticleDO article = requireManaged(articleId, operator);
         transition(article, ArticleStatus.ONLINE);
+        syncIndex(article, null);
         // 审核结果通知（SYSTEM）：即使作者当前角色是管理员也照常通知
         eventPublisher.publishEvent(new NotifyMsgEvent(article.getAuthorId(), operator.userId(),
                 NotifyTypeEnum.SYSTEM, articleId, null, "你发布的面经《" + article.getTitle() + "》已审核通过上线"));
@@ -134,6 +142,7 @@ public class ArticleServiceImpl implements ArticleService {
     public void offline(Long articleId, LoginUser operator) {
         ArticleDO article = requireManaged(articleId, operator);
         transition(article, ArticleStatus.OFFLINE);
+        syncIndex(article, null);
     }
 
     @Override
@@ -143,6 +152,7 @@ public class ArticleServiceImpl implements ArticleService {
             throw ExceptionUtil.of(StatusEnum.FORBIDDEN);
         }
         transition(article, ArticleStatus.REVIEW);
+        syncIndex(article, null);
     }
 
     @Override
@@ -175,6 +185,18 @@ public class ArticleServiceImpl implements ArticleService {
                 .eq(UserFootDO::getArticleId, articleId)
                 .eq(UserFootDO::getType, type.name()));
         return row != null && row.getState() == 1;
+    }
+
+    /** 索引同步：旁路（ES 故障时搜索自动降级 LIKE）；REVIEW/OFFLINE 从索引移除 */
+    private void syncIndex(ArticleDO article, String content) {
+        ArticleStatus status = ArticleStatus.of(article.getStatus());
+        String body = content;
+        if (status == ArticleStatus.ONLINE && body == null) {
+            ArticleDetailDO latest = latestDetail(article.getId());
+            body = latest == null ? "" : latest.getContent();
+        }
+        esSearchService.upsert(article.getId(), article.getTitle(),
+                body == null ? "" : body, status);
     }
 
     /** 详情阅读计数与排行：仅登录用户计（防匿名刷数），旁路失败不反压 */
@@ -369,6 +391,11 @@ public class ArticleServiceImpl implements ArticleService {
     private PostVo toVo(ArticleDO article, List<String> tags) {
         return new PostVo(String.valueOf(article.getId()), article.getTitle(), article.getStatus(),
                 tags, article.getCreateTime() == null ? null : article.getCreateTime().toString());
+    }
+
+    @Override
+    public Map<Long, List<String>> tagsFor(List<Long> articleIds) {
+        return tagsByArticle(articleIds);
     }
 
     // ---------- 游标与批量组装 ----------
