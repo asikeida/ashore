@@ -22,13 +22,17 @@ public class RedissonConfig {
     @Bean(destroyMethod = "shutdown")
     public RedissonClient redissonClient(
             @Value("${spring.data.redis.host:127.0.0.1}") String host,
-            @Value("${spring.data.redis.port:6379}") int port) {
+            @Value("${spring.data.redis.port:6379}") int port,
+            @Value("${spring.data.redis.password:}") String password) {
         Config config = new Config();
-        config.useSingleServer()
+        var server = config.useSingleServer()
                 .setAddress("redis://" + host + ":" + port)
                 .setConnectTimeout((int) Duration.ofSeconds(3).toMillis())
                 .setTimeout((int) Duration.ofSeconds(3).toMillis())
                 .setRetryAttempts(2);
+        if (password != null && !password.isBlank()) {
+            server.setPassword(password);
+        }
         return Redisson.create(config);
     }
 }

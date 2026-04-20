@@ -45,7 +45,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
         "ashore.session.jwt-secret=test-secret",
         "ashore.session.expire-days=30",
         "spring.data.redis.host=127.0.0.1",
-        "spring.data.redis.port=16379"
+        "spring.data.redis.port=16379",
+        "spring.data.redis.password=${ASHORE_REDIS_PASSWORD:}"
 })
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class FootConcurrencyTests {

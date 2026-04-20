@@ -1,9 +1,8 @@
-# 云端开发 profile：连接京东云（mine-asikeida）共享 MySQL 的 ashore_dev 库。
+# 云端开发 profile：连接京东云（mine-asikeida）共享 MySQL 的 ashore_dev 库与共享 Redis。
 # 前置条件：
-# 1. MySQL 由 /opt/projects-infra/mysql compose 管理（3306 仅绑服务器 127.0.0.1，公网不可达）
-# 2. 本地已建立 SSH 隧道：./scripts/dev-tunnel.sh（本地 13306 -> 京东云 3306）
-# 3. 密码经环境变量 ASHORE_DB_PASSWORD 注入（与服务器 secrets/ashore_dev.env 的 DB_PASSWORD 一致），不设默认值
-# 4. Redis：京东云暂未部署 Redis 容器，会话/计数等 Redis 功能待共享 Redis 就绪后接入（见 06 计划 M4 收尾说明）
+# 1. MySQL/Redis 由 /opt/projects-infra/{mysql,redis} compose 管理（端口仅绑服务器 127.0.0.1，公网不可达）
+# 2. 本地已建立 SSH 隧道：./scripts/dev-tunnel.sh（本地 13306 -> 3306；16379 -> 6379）
+# 3. 密码经环境变量注入（ASHORE_DB_PASSWORD / ASHORE_REDIS_PASSWORD），不设默认值
 ashore:
   session:
     jwt-secret: dev-cloud-secret-change-me
@@ -17,3 +16,8 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 16379
+      password: ${ASHORE_REDIS_PASSWORD:}

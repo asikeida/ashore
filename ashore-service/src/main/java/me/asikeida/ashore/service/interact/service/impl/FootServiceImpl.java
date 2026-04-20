@@ -65,7 +65,8 @@ public class FootServiceImpl implements FootService {
                 .getLock("lock:foot:" + user.userId() + ":" + articleId + ":" + type.name());
         boolean locked;
         try {
-            locked = lock.tryLock(3, 10, TimeUnit.SECONDS);
+            // 单参 tryLock = 看门狗模式：持锁期间自动续期，慢操作下锁不会提前过期
+            locked = lock.tryLock(15, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("获取足迹锁被中断", e);
