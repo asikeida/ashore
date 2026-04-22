@@ -57,6 +57,11 @@
             <artifactId>redisson</artifactId>
             <version>3.52.0</version>
         </dependency>
+        <!-- ES 搜索（elasticsearch-java 8.x，版本由 Spring Boot 3.5 BOM 管理；服务端 8.15.3） -->
+        <dependency>
+            <groupId>co.elastic.clients</groupId>
+            <artifactId>elasticsearch-java</artifactId>
+        </dependency>
         <!-- Flyway：迁移脚本与依赖都归属持久化层模块（web 经传递依赖获得） -->
         <dependency>
             <groupId>org.flywaydb</groupId>

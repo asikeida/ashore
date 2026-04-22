@@ -21,6 +21,10 @@ ashore:
     jwt-secret: ${ASHORE_JWT_SECRET}
     # 会话有效期（天），同时是 JWT 过期与 Redis TTL
     expire-days: 30
+  search:
+    # ES 主路径开关：false 或 ES 故障时自动降级 MySQL LIKE（M5）
+    enabled: ${ASHORE_SEARCH_ENABLED:true}
+    url: ${ASHORE_SEARCH_URL:http://127.0.0.1:9200}
   oauth:
     github:
       # 为空表示未启用（端点返回 503001）；启用：注册 GitHub OAuth App 并注入环境变量
