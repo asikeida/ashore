@@ -80,7 +80,7 @@ public class EsSearchServiceImpl implements EsSearchService {
     }
 
     private void ensureIndex() throws IOException {
-        if (client.exists(b -> b.index(INDEX)).value()) {
+        if (client.indices().exists(e -> e.index(INDEX)).value()) {
             return;
         }
         client.indices().create(c -> c.index(INDEX).mappings(m -> m
