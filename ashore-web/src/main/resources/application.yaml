@@ -25,6 +25,19 @@ ashore:
     # ES 主路径开关：false 或 ES 故障时自动降级 MySQL LIKE（M5）
     enabled: ${ASHORE_SEARCH_ENABLED:true}
     url: ${ASHORE_SEARCH_URL:http://127.0.0.1:9200}
+  ai:
+    # 每用户每日 AI 调用上限（成本闸门）
+    daily-limit: 20
+    # 供应商列表按顺序降级；apiKey 为空 = 未启用（OpenAI 兼容协议）
+    providers:
+      - name: deepseek
+        base-url: https://api.deepseek.com
+        api-key: ${AI_DEEPSEEK_API_KEY:}
+        model: deepseek-chat
+      - name: zhipu
+        base-url: https://open.bigmodel.cn/api/paas/v4
+        api-key: ${AI_ZHIPU_API_KEY:}
+        model: glm-4-flash
   oauth:
     github:
       # 为空表示未启用（端点返回 503001）；启用：注册 GitHub OAuth App 并注入环境变量
