@@ -6,7 +6,7 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * MVC 装配：鉴权拦截器只拦 /api/**（页面端点当前不存在，SPA 架构下全部为 API）。
+ * MVC 装配：鉴权拦截器只拦 /api/**；SPA history 路由 fallback。
  */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
@@ -21,4 +21,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(authInterceptor).addPathPatterns("/api/**");
     }
+
+    // SPA 用 hash 路由（vue-router createWebHashHistory），无需服务端 fallback；
 }
+

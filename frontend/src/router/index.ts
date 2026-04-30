@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from "vue-router"
 import { auth, refreshAuth } from '../stores/auth'
 
 const Home = () => import('../views/Home.vue')
@@ -7,9 +7,10 @@ const Register = () => import('../views/Register.vue')
 const PostDetail = () => import('../views/PostDetail.vue')
 const PostEdit = () => import('../views/PostEdit.vue')
 const Interview = () => import('../views/Interview.vue')
+const Admin = () => import('../views/Admin.vue')
 
 export const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes: [
     { path: '/', component: Home },
     { path: '/login', component: Login },
@@ -17,6 +18,7 @@ export const router = createRouter({
     { path: '/posts/:id', component: PostDetail, props: true },
     { path: '/write', component: PostEdit, meta: { requiresAuth: true } },
     { path: '/posts/:id/interview', component: Interview, meta: { requiresAuth: true }, props: true },
+    { path: '/admin', component: Admin, meta: { requiresAuth: true, requiresAdmin: true } },
   ],
 })
 
@@ -27,6 +29,9 @@ router.beforeEach(async to => {
   }
   if (to.meta.requiresAuth && !auth.loggedIn) {
     return { path: '/login', query: { redirect: to.fullPath } }
+  }
+  if (to.meta.requiresAdmin && auth.role !== 'ADMIN') {
+    return { path: '/' }
   }
   return true
 })
