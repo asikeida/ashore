@@ -18,6 +18,7 @@ async function handleLogout() {
     <RouterLink to="/" class="brand">Ashore · 上岸</RouterLink>
     <nav>
       <RouterLink v-if="auth.loggedIn" to="/write">写面经</RouterLink>
+      <RouterLink v-if="auth.role === 'ADMIN'" to="/admin">管理台</RouterLink>
       <template v-if="auth.loggedIn">
         <span class="user">{{ auth.account }}</span>
         <button class="link" @click="handleLogout">登出</button>
