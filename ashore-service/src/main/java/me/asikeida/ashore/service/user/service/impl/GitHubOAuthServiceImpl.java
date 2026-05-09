@@ -44,7 +44,10 @@ public class GitHubOAuthServiceImpl implements GitHubOAuthService {
 
     public GitHubOAuthServiceImpl(UserMapper userMapper) {
         this.userMapper = userMapper;
-        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory();
+        java.net.http.HttpClient httpClient = java.net.http.HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(3))
+                .build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(Duration.ofSeconds(5));
         this.restClient = RestClient.builder().requestFactory(requestFactory).build();
     }
@@ -92,13 +95,17 @@ public class GitHubOAuthServiceImpl implements GitHubOAuthService {
         try {
             userMapper.insert(user);
         } catch (DuplicateKeyException e) {
-            // 并发绑定兜底：唯一索引拦截后按 githubId 重新读取
+            // 并发绑定兜底：先按 githubId 重查（并发同 GitHub 用户）
             UserDO raced = userMapper.selectOne(new LambdaQueryWrapper<UserDO>()
                     .eq(UserDO::getGithubId, ghUser.githubId()));
-            if (raced == null) {
-                throw e;
+            if (raced != null) {
+                return new LoginUser(raced.getId(), raced.getAccount(), raced.getRole());
             }
-            return new LoginUser(raced.getId(), raced.getAccount(), raced.getRole());
+            // github_id 未占用而 account 被手工注册占位（审查 R7）：换随机后缀账号重试一次
+            user.setId(null);
+            user.setAccount("gh" + ghUser.githubId() + "_"
+                    + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 6));
+            userMapper.insert(user);
         }
         return new LoginUser(user.getId(), user.getAccount(), user.getRole());
     }

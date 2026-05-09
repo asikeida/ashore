@@ -32,7 +32,10 @@ public class LoginAuditServiceImpl implements LoginAuditService {
             audit.setSuccess(success);
             audit.setFailReason(failReason);
             audit.setIp(ReqContext.clientIp());
-            audit.setUserAgent(ReqContext.userAgent());
+            // 列宽 varchar(255)，超长 UA 截断而非让整条审计静默丢失（审查 R9）
+            String userAgent = ReqContext.userAgent();
+            audit.setUserAgent(userAgent == null ? null
+                    : userAgent.length() > 250 ? userAgent.substring(0, 250) : userAgent);
             audit.setRequestId(ReqContext.requestId());
             auditMapper.insert(audit);
         } catch (Exception e) {
