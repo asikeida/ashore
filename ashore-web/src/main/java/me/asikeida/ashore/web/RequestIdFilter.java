@@ -65,11 +65,15 @@ public class RequestIdFilter extends OncePerRequestFilter {
         return UUID.randomUUID().toString().replace("-", "").substring(0, 16);
     }
 
-    /** 客户端 IP：代理场景取 X-Forwarded-For 首段（最初客户端），否则取直连地址 */
+    /**
+     * 客户端 IP：代理场景取 X-Forwarded-For 末段（最接近本服务的代理所追加，不可被客户端预置伪造），
+     * 直连场景取源地址。审查 R4：首段可被客户端任意伪造（公网部署后审计 IP 污染）。
+     */
     private String resolveClientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
+            String[] parts = forwarded.split(",");
+            return parts[parts.length - 1].trim();
         }
         return request.getRemoteAddr();
     }

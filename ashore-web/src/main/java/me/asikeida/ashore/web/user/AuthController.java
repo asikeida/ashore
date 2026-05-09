@@ -19,6 +19,8 @@ import me.asikeida.ashore.core.permission.Permission;
 import me.asikeida.ashore.service.user.service.AuthService;
 import me.asikeida.ashore.service.user.service.GitHubOAuthService;
 import me.asikeida.ashore.service.user.service.SessionService;
+import me.asikeida.ashore.web.auth.SessionCookieWriter;
+import me.asikeida.ashore.web.auth.SessionCookieWriter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -98,21 +100,11 @@ public class AuthController {
     private void issueSessionCookie(UserVo vo, HttpServletResponse response) {
         LoginUser loginUser = new LoginUser(Long.valueOf(vo.id()), vo.account(), vo.role());
         SessionService.IssuedSession issued = sessionService.issue(loginUser);
-        Cookie cookie = new Cookie(SessionService.COOKIE_NAME, issued.token());
-        cookie.setHttpOnly(true);
-        cookie.setPath("/");
-        cookie.setMaxAge((int) issued.maxAgeSeconds());
-        cookie.setAttribute("SameSite", "Lax");
-        response.addCookie(cookie);
+        SessionCookieWriter.issue(response, issued.token(), issued.maxAgeSeconds());
     }
 
     private void clearSessionCookie(HttpServletResponse response) {
-        Cookie cookie = new Cookie(SessionService.COOKIE_NAME, "");
-        cookie.setHttpOnly(true);
-        cookie.setPath("/");
-        cookie.setMaxAge(0);
-        cookie.setAttribute("SameSite", "Lax");
-        response.addCookie(cookie);
+        SessionCookieWriter.clear(response);
     }
 
     /** GitHub 授权入口：凭证未配置时拒绝（503001），已配置则 302 跳转并携带 state Cookie */
@@ -123,11 +115,7 @@ public class AuthController {
             throw ExceptionUtil.of(me.asikeida.ashore.api.resp.StatusEnum.SERVICE_DISABLED);
         }
         String state = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-        Cookie stateCookie = new Cookie(OAUTH_STATE_COOKIE, state);
-        stateCookie.setHttpOnly(true);
-        stateCookie.setPath("/");
-        stateCookie.setMaxAge(300);
-        response.addCookie(stateCookie);
+        SessionCookieWriter.issueState(response, OAUTH_STATE_COOKIE, state, 300);
         response.sendRedirect(githubOAuthService.buildAuthorizeUrl(state));
     }
 
@@ -155,16 +143,8 @@ public class AuthController {
         LoginUser loginUser = githubOAuthService.loginWithGitHub(code);
         SessionService.IssuedSession issued = sessionService.issue(loginUser);
 
-        Cookie sessionCookie = new Cookie(SessionService.COOKIE_NAME, issued.token());
-        sessionCookie.setHttpOnly(true);
-        sessionCookie.setPath("/");
-        sessionCookie.setMaxAge((int) issued.maxAgeSeconds());
-        sessionCookie.setAttribute("SameSite", "Lax");
-        response.addCookie(sessionCookie);
-        Cookie clearState = new Cookie(OAUTH_STATE_COOKIE, "");
-        clearState.setPath("/");
-        clearState.setMaxAge(0);
-        response.addCookie(clearState);
+        SessionCookieWriter.issue(response, issued.token(), issued.maxAgeSeconds());
+        SessionCookieWriter.clearNamed(response, OAUTH_STATE_COOKIE);
         response.sendRedirect("/");
     }
 }

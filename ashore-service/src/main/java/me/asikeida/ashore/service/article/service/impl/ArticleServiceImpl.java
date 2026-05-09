@@ -398,6 +398,32 @@ public class ArticleServiceImpl implements ArticleService {
         return tagsByArticle(articleIds);
     }
 
+    @Override
+    public List<PostItemVo> adminList(String status, Integer limit) {
+        int safeLimit = limit == null ? 50 : Math.min(Math.max(limit, 1), 100);
+        LambdaQueryWrapper<ArticleDO> wrapper = new LambdaQueryWrapper<ArticleDO>()
+                .eq(ArticleDO::getDeleted, 0)
+                .orderByDesc(ArticleDO::getCreateTime)
+                .last("LIMIT " + safeLimit);
+        if (status != null && !status.isBlank()) {
+            wrapper.eq(ArticleDO::getStatus, status);
+        }
+        List<ArticleDO> articles = articleMapper.selectList(wrapper);
+        if (articles.isEmpty()) {
+            return List.of();
+        }
+        List<Long> articleIds = articles.stream().map(ArticleDO::getId).toList();
+        Map<Long, List<String>> tagsByArticle = tagsByArticle(articleIds);
+        Map<Long, String> nicknameByAuthor = nicknamesByAuthor(
+                articles.stream().map(ArticleDO::getAuthorId).distinct().toList());
+        return articles.stream()
+                .map(a -> new PostItemVo(String.valueOf(a.getId()), a.getTitle(),
+                        tagsByArticle.getOrDefault(a.getId(), List.of()),
+                        nicknameByAuthor.getOrDefault(a.getAuthorId(), "岸友"),
+                        a.getCreateTime() == null ? null : a.getCreateTime().toString()))
+                .toList();
+    }
+
     // ---------- 游标与批量组装 ----------
 
     /** 游标明文格式：{topping}_{createTimeISO}_{id}（ISO 时间无下划线，可无损往返） */
