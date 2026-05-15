@@ -8,7 +8,11 @@
 set -euo pipefail
 
 echo "建立隧道：本地 13306/16379/9200 -> mine-asikeida（Ctrl+C 断开）"
+# keepalive：空闲连接会被中间设备重置（实测断过一次），30s 心跳保活；转发端口被占则直接失败而非静默半可用
 exec ssh -N \
+  -o ServerAliveInterval=30 \
+  -o ServerAliveCountMax=3 \
+  -o ExitOnForwardFailure=yes \
   -L 13306:127.0.0.1:3306 \
   -L 16379:127.0.0.1:6379 \
   -L 9200:127.0.0.1:9200 \
