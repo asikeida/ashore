@@ -1,4 +1,8 @@
 # 服务器部署使用；不导入开发 .env，真实密码由部署环境注入。
+server:
+  # 仅监听回环地址：公网流量一律经本机 Nginx（80 跳转 / 8443 TLS）反代进入，
+  # 8080 不对公网暴露（最小攻击面；安全组不开 8080，双保险）
+  address: 127.0.0.1
 spring:
   datasource:
     url: jdbc:mysql://${ASHORE_DB_HOST}:${ASHORE_DB_PORT:3306}/${ASHORE_DB_NAME:ashore_prod}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC

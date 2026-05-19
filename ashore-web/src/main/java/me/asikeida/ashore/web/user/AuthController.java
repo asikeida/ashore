@@ -20,7 +20,6 @@ import me.asikeida.ashore.service.user.service.AuthService;
 import me.asikeida.ashore.service.user.service.GitHubOAuthService;
 import me.asikeida.ashore.service.user.service.SessionService;
 import me.asikeida.ashore.web.auth.SessionCookieWriter;
-import me.asikeida.ashore.web.auth.SessionCookieWriter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -51,11 +50,14 @@ public class AuthController {
 
     private final GitHubOAuthService githubOAuthService;
 
+    private final SessionCookieWriter cookieWriter;
+
     public AuthController(AuthService authService, SessionService sessionService,
-                          GitHubOAuthService githubOAuthService) {
+                          GitHubOAuthService githubOAuthService, SessionCookieWriter cookieWriter) {
         this.authService = authService;
         this.sessionService = sessionService;
         this.githubOAuthService = githubOAuthService;
+        this.cookieWriter = cookieWriter;
     }
 
     @Operation(summary = "注册", description = "账号唯一校验 + BCrypt 密码哈希；成功即签发会话 Cookie")
@@ -100,11 +102,11 @@ public class AuthController {
     private void issueSessionCookie(UserVo vo, HttpServletResponse response) {
         LoginUser loginUser = new LoginUser(Long.valueOf(vo.id()), vo.account(), vo.role());
         SessionService.IssuedSession issued = sessionService.issue(loginUser);
-        SessionCookieWriter.issue(response, issued.token(), issued.maxAgeSeconds());
+        cookieWriter.issue(response, issued.token(), issued.maxAgeSeconds());
     }
 
     private void clearSessionCookie(HttpServletResponse response) {
-        SessionCookieWriter.clear(response);
+        cookieWriter.clear(response);
     }
 
     /** GitHub 授权入口：凭证未配置时拒绝（503001），已配置则 302 跳转并携带 state Cookie */
@@ -115,7 +117,7 @@ public class AuthController {
             throw ExceptionUtil.of(me.asikeida.ashore.api.resp.StatusEnum.SERVICE_DISABLED);
         }
         String state = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-        SessionCookieWriter.issueState(response, OAUTH_STATE_COOKIE, state, 300);
+        cookieWriter.issueState(response, OAUTH_STATE_COOKIE, state, 300);
         response.sendRedirect(githubOAuthService.buildAuthorizeUrl(state));
     }
 
@@ -143,8 +145,8 @@ public class AuthController {
         LoginUser loginUser = githubOAuthService.loginWithGitHub(code);
         SessionService.IssuedSession issued = sessionService.issue(loginUser);
 
-        SessionCookieWriter.issue(response, issued.token(), issued.maxAgeSeconds());
-        SessionCookieWriter.clearNamed(response, OAUTH_STATE_COOKIE);
+        cookieWriter.issue(response, issued.token(), issued.maxAgeSeconds());
+        cookieWriter.clearNamed(response, OAUTH_STATE_COOKIE);
         response.sendRedirect("/");
     }
 }

@@ -1,4 +1,4 @@
-import { createRouter, createWebHashHistory } from "vue-router"
+import { createRouter, createWebHistory } from "vue-router"
 import { auth, refreshAuth } from '../stores/auth'
 
 const Home = () => import('../views/Home.vue')
@@ -10,7 +10,9 @@ const Interview = () => import('../views/Interview.vue')
 const Admin = () => import('../views/Admin.vue')
 
 export const router = createRouter({
-  history: createWebHashHistory(),
+  // history 模式：非 API 路径由 Nginx try_files 兜底回 index.html（生产）；
+  // 本地 vite dev server 自带 SPA fallback，直接可用
+  history: createWebHistory(),
   routes: [
     { path: '/', component: Home },
     { path: '/login', component: Login },

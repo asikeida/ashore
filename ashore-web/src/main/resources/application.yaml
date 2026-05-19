@@ -21,6 +21,10 @@ ashore:
     jwt-secret: ${ASHORE_JWT_SECRET}
     # 会话有效期（天），同时是 JWT 过期与 Redis TTL
     expire-days: 30
+    # 会话 Cookie Secure 标记（R6）：生产经 Nginx HTTPS 入口后置 true；
+    # 开发期 false。注意：置 true 后纯 HTTP 访问将无法建立会话（浏览器不回传 Cookie），
+    # 这正是期望行为——切换 HTTPS 上线的同一时刻注入，避免过渡期破坏旧 HTTP 链路
+    cookie-secure: ${ASHORE_COOKIE_SECURE:false}
   search:
     # ES 主路径开关：false 或 ES 故障时自动降级 MySQL LIKE（M5）
     enabled: ${ASHORE_SEARCH_ENABLED:true}
