@@ -1,0 +1,4 @@
+# 服务器侧脚本与配置强制 LF：Windows 工作副本的 CRLF 经 scp 上传后会毒化
+# 远端 bash（set -euo pipefail 报非法选项）与 nginx，教训见 docs/踩坑记录
+*.sh text eol=lf
+*.conf text eol=lf
