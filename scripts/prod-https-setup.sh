@@ -42,9 +42,13 @@ rm -f /etc/nginx/sites-enabled/default   # 移除默认站点，避免 80 冲突
 nginx -t && systemctl reload nginx
 
 echo "==> 5/7 申请 IP 证书（HTTP-01 / webroot，有效期约 6 天）"
+# IP 证书必须显式选 shortlived profile（LE 政策强制 IP 证书短效；default classic 拒签 IP）。
+# 用 required 而非 preferred：无 profile 回退的价值——IP 证书在 classic 下根本签不出来，
+# 宁可续期时响亮失败触发 cert-expiry-check 告警，也不要静默降级
 if [ ! -f "$LIVE/fullchain.pem" ]; then
   certbot certonly --webroot -w /var/www/certbot -d "$IP" \
-    --non-interactive --agree-tos --register-unsafely-without-email
+    --non-interactive --agree-tos --register-unsafely-without-email \
+    --required-profile shortlived
 fi
 [ -f "$LIVE/fullchain.pem" ] || { echo "证书未生成——检查上方 certbot 输出（80 端口是否公网可达）"; exit 1; }
 
