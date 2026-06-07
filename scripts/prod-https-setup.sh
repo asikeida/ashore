@@ -7,8 +7,10 @@
 #
 # 为什么是 acme.sh 而不是 certbot（真机结论，勿回退）：
 #   certbot 至 5.9.0（PyPI 最新）的 util.enforce_domain_sanity 仍无条件拒绝 IP 标识符；
-#   LE 生产目录已 GA IP 证书（2026-01，仅 shortlived profile，约 6 天有效期），
-#   acme.sh 支持 --preferred-profile shortlived 签发（社区成熟用法）。
+#   LE 生产目录已 GA IP 证书（2026-01，仅 shortlived profile，约 6 天有效期）；
+#   acme.sh（github master）用 --certificate-profile shortlived --days 3 签发与排期。
+#   注意：gitee 镜像停在 v3.1.5 无 profile 支持，git clone github 在境内常被掐断——
+#   安装走 codeload tarball。
 set -euo pipefail
 
 IP=111.228.13.15
@@ -31,13 +33,15 @@ apt-get remove -y certbot >/dev/null 2>&1 || true
 rm -f /usr/local/bin/certbot /etc/cron.d/ashore-certbot-renew
 rm -rf /opt/certbot-venv
 
-echo "==> 2/8 安装 acme.sh（国内走 gitee 镜像，失败回落 github）"
+echo "==> 2/8 安装 acme.sh（codeload tarball；git clone 在境内常被掐断，gitee 镜像过旧）"
 if [ ! -f "$ACME_HOME/acme.sh" ]; then
-  rm -rf /tmp/acme.sh-clone
-  git clone --depth 1 https://gitee.com/neilpang/acme.sh.git /tmp/acme.sh-clone \
-    || git clone --depth 1 https://github.com/acmesh-official/acme.sh.git /tmp/acme.sh-clone
-  (cd /tmp/acme.sh-clone && ./acme.sh --install --home "$ACME_HOME" >/dev/null)
-  rm -rf /tmp/acme.sh-clone
+  rm -rf /tmp/acme-master /tmp/acme.tar.gz
+  curl -sL --max-time 120 -o /tmp/acme.tar.gz \
+    https://codeload.github.com/acmesh-official/acme.sh/tar.gz/refs/heads/master
+  [ -s /tmp/acme.tar.gz ] || { echo "FATAL: acme.sh 下载失败"; exit 1; }
+  tar xzf /tmp/acme.tar.gz -C /tmp && mv /tmp/acme.sh-* /tmp/acme-master
+  (cd /tmp/acme-master && ./acme.sh --install --home "$ACME_HOME" >/dev/null)
+  rm -rf /tmp/acme-master /tmp/acme.tar.gz
 fi
 "$ACME_HOME/acme.sh" --set-default-ca --server letsencrypt
 
@@ -51,19 +55,15 @@ rm -f /etc/nginx/sites-enabled/default   # 移除默认站点，避免 80 冲突
 nginx -t && systemctl reload nginx
 
 echo "==> 5/8 签发 IP 证书（shortlived profile，约 6 天有效期）"
-# LE 政策：IP 证书仅经 shortlived profile 签发；flag 随 acme.sh 版本演进而异，运行时探测
+# LE 政策：IP 证书仅经 shortlived profile 签发，缺 profile 支持的客户端直接被服务端拒。
+# --days 3：160 小时证书必须在 3 天时排续期（默认 60 天排期对短效证书等于永不续期）
 if [ ! -f "$CERT_DIR/fullchain.pem" ]; then
-  PROFILE_FLAG=""
-  if "$ACME_HOME/acme.sh" --help 2>&1 | grep -q "preferred-profile"; then
-    PROFILE_FLAG="--preferred-profile shortlived"
-  elif "$ACME_HOME/acme.sh" --help 2>&1 | grep -q -- "--profile"; then
-    PROFILE_FLAG="--profile shortlived"
-  else
-    echo "WARN: 当前 acme.sh 不识别 profile 参数，直接签发（若被 LE 拒绝需升级 acme.sh）"
+  if ! "$ACME_HOME/acme.sh" --help 2>&1 | grep -qE "cert(ificate)?-profile"; then
+    echo "FATAL: acme.sh 缺少 profile 支持（--certificate-profile），请用 github master 版"; exit 1
   fi
-  # shellcheck disable=SC2086 — PROFILE_FLAG 为空时不应带引号
   "$ACME_HOME/acme.sh" --issue --server letsencrypt \
-    -d "$IP" -w "$WEBROOT" $PROFILE_FLAG
+    -d "$IP" -w "$WEBROOT" \
+    --certificate-profile shortlived --days 3
 fi
 
 echo "==> 6/8 安装证书到固定路径（acme.sh 续期后自动回填并 reload nginx）"
