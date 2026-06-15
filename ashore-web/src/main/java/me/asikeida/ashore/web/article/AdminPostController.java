@@ -2,7 +2,7 @@ package me.asikeida.ashore.web.article;
 
 import java.util.List;
 import me.asikeida.ashore.api.resp.ResVo;
-import me.asikeida.ashore.api.vo.post.PostItemVo;
+import me.asikeida.ashore.api.vo.post.AdminPostItemVo;
 import me.asikeida.ashore.core.permission.Permission;
 import me.asikeida.ashore.core.permission.UserRole;
 import me.asikeida.ashore.service.article.service.ArticleService;
@@ -31,7 +31,7 @@ public class AdminPostController {
     @Operation(summary = "文章管理列表", description = "仅管理员；status 可选（REVIEW/ONLINE/OFFLINE），缺省返回全部状态")
     @Permission(UserRole.ADMIN)
     @GetMapping
-    public ResVo<List<PostItemVo>> list(
+    public ResVo<List<AdminPostItemVo>> list(
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "50") Integer limit) {
         return ResVo.ok(articleService.adminList(status, limit));

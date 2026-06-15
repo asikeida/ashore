@@ -17,6 +17,7 @@ import me.asikeida.ashore.api.exception.ExceptionUtil;
 import me.asikeida.ashore.api.resp.StatusEnum;
 import me.asikeida.ashore.api.vo.post.EditPostReq;
 import me.asikeida.ashore.api.vo.post.PostDetailVo;
+import me.asikeida.ashore.api.vo.post.AdminPostItemVo;
 import me.asikeida.ashore.api.vo.post.PostItemVo;
 import me.asikeida.ashore.api.vo.post.PostPageVo;
 import me.asikeida.ashore.api.vo.post.PostVersionVo;
@@ -399,7 +400,7 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
-    public List<PostItemVo> adminList(String status, Integer limit) {
+    public List<AdminPostItemVo> adminList(String status, Integer limit) {
         int safeLimit = limit == null ? 50 : Math.min(Math.max(limit, 1), 100);
         LambdaQueryWrapper<ArticleDO> wrapper = new LambdaQueryWrapper<ArticleDO>()
                 .eq(ArticleDO::getDeleted, 0)
@@ -417,10 +418,10 @@ public class ArticleServiceImpl implements ArticleService {
         Map<Long, String> nicknameByAuthor = nicknamesByAuthor(
                 articles.stream().map(ArticleDO::getAuthorId).distinct().toList());
         return articles.stream()
-                .map(a -> new PostItemVo(String.valueOf(a.getId()), a.getTitle(),
+                .map(a -> AdminPostItemVo.of(new PostItemVo(String.valueOf(a.getId()), a.getTitle(),
                         tagsByArticle.getOrDefault(a.getId(), List.of()),
                         nicknameByAuthor.getOrDefault(a.getAuthorId(), "岸友"),
-                        a.getCreateTime() == null ? null : a.getCreateTime().toString()))
+                        a.getCreateTime() == null ? null : a.getCreateTime().toString()), a.getStatus()))
                 .toList();
     }
 
