@@ -2,6 +2,7 @@ package me.asikeida.ashore.service.article.service;
 
 import java.util.List;
 import me.asikeida.ashore.api.context.LoginUser;
+import me.asikeida.ashore.api.vo.post.AdminPostItemVo;
 import me.asikeida.ashore.api.vo.post.EditPostReq;
 import me.asikeida.ashore.api.vo.post.PostDetailVo;
 import me.asikeida.ashore.api.vo.post.PostItemVo;
@@ -52,6 +53,6 @@ public interface ArticleService {
     /** 批量取面经标签（供搜索等读路径复用，两次批量查询防 N+1） */
     java.util.Map<Long, List<String>> tagsFor(List<Long> articleIds);
 
-    /** 管理台文章列表：按状态筛选（含 REVIEW），软删除除外（仅 ADMIN 调用） */
-    List<PostItemVo> adminList(String status, Integer limit);
+    /** 管理台文章列表：按状态筛选（含 REVIEW），软删除除外（仅 ADMIN 调用）；每项含审核状态 */
+    List<AdminPostItemVo> adminList(String status, Integer limit);
 }
