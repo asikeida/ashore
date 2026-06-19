@@ -55,4 +55,12 @@ public interface ArticleService {
 
     /** 管理台文章列表：按状态筛选（含 REVIEW），软删除除外（仅 ADMIN 调用）；每项含审核状态 */
     List<AdminPostItemVo> adminList(String status, Integer limit);
+
+    /**
+     * 搜索索引全量重建：把全部 ONLINE 面经重新写入 ES 当前版本索引。
+     * 场景：索引版本升级（v1→v2 换分词器/映射）后迁移存量数据；同步是旁路，单篇失败仅告警。
+     *
+     * @return 成功写入索引的文档数
+     */
+    int reindexSearch();
 }

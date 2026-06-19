@@ -32,15 +32,22 @@ import org.springframework.stereotype.Service;
 
 /**
  * ES 8.x 搜索实现（elasticsearch-java，懒建连接与索引）。
- * <p>仅 ONLINE 文档入索引；同步/搜索失败由门面捕获降级 LIKE。索引 ashore_post_v1，
- * 标准分词器（ik 中文分词延后，待办 T14）。</p>
+ * <p>仅 ONLINE 文档入索引；同步/搜索失败由门面捕获降级 LIKE。</p>
+ * <p>分词设计（索引 v2）：title/content 主字段 standard 整词精确匹配，另挂
+ * {@code .ngram} 子字段（内置 ngram filter 2~8，免装 ik 插件）——解决「mys 搜不到
+ * mysql」类前缀/部分词检索：索引侧 ngram 切出 mys 词项，搜索侧保持 standard。
+ * 中文整词仍走主字段（T14 ik 分词待办保留）。</p>
  */
 @Service
 public class EsSearchServiceImpl implements EsSearchService {
 
     private static final Logger log = LoggerFactory.getLogger(EsSearchServiceImpl.class);
 
-    private static final String INDEX = "ashore_post_v1";
+    /** v2：相比 v1 新增 ngram 子字段与自定义分析器；索引名带版本便于切换与回溯 */
+    private static final String INDEX = "ashore_post_v2";
+
+    private static final String NGRAM_ANALYZER = "ashore_ngram_analyzer";
+    private static final String NGRAM_FILTER = "ashore_ngram_filter";
 
     private final SearchProperties properties;
 
@@ -83,12 +90,29 @@ public class EsSearchServiceImpl implements EsSearchService {
         if (client.indices().exists(e -> e.index(INDEX)).value()) {
             return;
         }
-        client.indices().create(c -> c.index(INDEX).mappings(m -> m
-                .properties("articleId", p -> p.keyword(k -> k))
-                .properties("title", p -> p.text(t -> t))
-                .properties("content", p -> p.text(t -> t))
-                .properties("status", p -> p.keyword(k -> k))));
-        log.info("ES 索引 {} 已创建", INDEX);
+        client.indices().create(c -> c.index(INDEX)
+                .settings(s -> s
+                        // ES 默认限制 max_gram - min_gram <= 1（max_ngram_diff=1），2~8 差 6 必须放开
+                        .maxNgramDiff(20)
+                        .analysis(a -> a
+                                .analyzer(NGRAM_ANALYZER, an -> an.custom(cu -> cu
+                                        .tokenizer("standard")
+                                        .filter("lowercase", NGRAM_FILTER)))
+                                .filter(NGRAM_FILTER, tf -> tf
+                                        .definition(d -> d.ngram(n -> n.minGram(2).maxGram(8))))))
+                .mappings(m -> m
+                        .properties("articleId", p -> p.keyword(k -> k))
+                        // 主字段 standard 整词；.ngram 子字段：索引侧切 2~8 gram，搜索侧 standard 整词
+                        .properties("title", p -> p.text(t -> t
+                                .analyzer("standard")
+                                .fields("ngram", f -> f.text(nt -> nt
+                                        .analyzer(NGRAM_ANALYZER).searchAnalyzer("standard")))))
+                        .properties("content", p -> p.text(t -> t
+                                .analyzer("standard")
+                                .fields("ngram", f -> f.text(nt -> nt
+                                        .analyzer(NGRAM_ANALYZER).searchAnalyzer("standard")))))
+                        .properties("status", p -> p.keyword(k -> k))));
+        log.info("ES 索引 {} 已创建（含 ngram 子字段）", INDEX);
     }
 
     @Override
@@ -99,12 +123,14 @@ public class EsSearchServiceImpl implements EsSearchService {
                         .size(limit)
                         .query(Query.of(q -> q.bool(b -> b
                                 .must(m -> m.multiMatch(mm -> mm
-                                        .fields("title^2", "content")
+                                        // ngram 子字段权重低一档：整词命中优先，前缀/部分词兜底
+                                        .fields("title^3", "title.ngram", "content", "content.ngram")
                                         .query(keyword)))
                                 .filter(f -> f.term(t -> t.field("status").value(FieldValue.of(
                                         ArticleStatus.ONLINE.name())))))))
                         .highlight(h -> h
                                 .fields("title", hf -> hf.preTags("<em>").postTags("</em>"))
+                                .fields("title.ngram", hf -> hf.preTags("<em>").postTags("</em>"))
                                 .fields("content", hf -> hf.preTags("<em>").postTags("</em>")
                                         .fragmentSize(80).numberOfFragments(1))),
                 Map.class);
@@ -131,6 +157,9 @@ public class EsSearchServiceImpl implements EsSearchService {
                     ArticleDO article = articles.get(Long.parseLong(hit.id()));
                     List<String> titleHits = hit.highlight() == null
                             ? List.of() : hit.highlight().getOrDefault("title", List.of());
+                    if (titleHits.isEmpty() && hit.highlight() != null) {
+                        titleHits = hit.highlight().getOrDefault("title.ngram", List.of());
+                    }
                     List<String> contentHits = hit.highlight() == null
                             ? List.of() : hit.highlight().getOrDefault("content", List.of());
                     return new SearchItemVo(

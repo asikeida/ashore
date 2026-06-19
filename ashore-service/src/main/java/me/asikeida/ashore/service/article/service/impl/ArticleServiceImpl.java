@@ -48,6 +48,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ArticleServiceImpl implements ArticleService {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(ArticleServiceImpl.class);
+
     private final ArticleMapper articleMapper;
 
     private final ArticleDetailMapper detailMapper;
@@ -423,6 +426,24 @@ public class ArticleServiceImpl implements ArticleService {
                         nicknameByAuthor.getOrDefault(a.getAuthorId(), "岸友"),
                         a.getCreateTime() == null ? null : a.getCreateTime().toString()), a.getStatus()))
                 .toList();
+    }
+
+    @Override
+    public int reindexSearch() {
+        List<ArticleDO> onlineArticles = articleMapper.selectList(new LambdaQueryWrapper<ArticleDO>()
+                .eq(ArticleDO::getDeleted, 0)
+                .eq(ArticleDO::getStatus, ArticleStatus.ONLINE.name()));
+        int synced = 0;
+        for (ArticleDO article : onlineArticles) {
+            // syncIndex 内部会取最新正文版本；单篇失败仅告警不中断（旁路纪律）
+            try {
+                syncIndex(article, null);
+                synced++;
+            } catch (Exception e) {
+                log.warn("重索引单篇失败 articleId={}: {}", article.getId(), e.getMessage());
+            }
+        }
+        return synced;
     }
 
     // ---------- 游标与批量组装 ----------
