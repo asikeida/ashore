@@ -429,6 +429,29 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
+    public List<PostItemVo> listByIds(java.util.Collection<Long> articleIds) {
+        if (articleIds == null || articleIds.isEmpty()) {
+            return List.of();
+        }
+        List<ArticleDO> articles = articleMapper.selectBatchIds(articleIds).stream()
+                .filter(a -> a.getDeleted() == 0)
+                .toList();
+        if (articles.isEmpty()) {
+            return List.of();
+        }
+        List<Long> ids = articles.stream().map(ArticleDO::getId).toList();
+        Map<Long, List<String>> tagsByArticle = tagsByArticle(ids);
+        Map<Long, String> nicknameByAuthor = nicknamesByAuthor(
+                articles.stream().map(ArticleDO::getAuthorId).distinct().toList());
+        return articles.stream()
+                .map(a -> new PostItemVo(String.valueOf(a.getId()), a.getTitle(),
+                        tagsByArticle.getOrDefault(a.getId(), List.of()),
+                        nicknameByAuthor.getOrDefault(a.getAuthorId(), "岸友"),
+                        a.getCreateTime() == null ? null : a.getCreateTime().toString()))
+                .toList();
+    }
+
+    @Override
     public int reindexSearch() {
         List<ArticleDO> onlineArticles = articleMapper.selectList(new LambdaQueryWrapper<ArticleDO>()
                 .eq(ArticleDO::getDeleted, 0)

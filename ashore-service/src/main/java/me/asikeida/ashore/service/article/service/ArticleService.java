@@ -63,4 +63,10 @@ public interface ArticleService {
      * @return 成功写入索引的文档数
      */
     int reindexSearch();
+
+    /**
+     * 按 id 批量取面经卡片（个人中心收藏/点赞列表复用，含标签与作者昵称，防 N+1）。
+     * 不筛状态：个人足迹里允许出现后来下线的文章（详情可见性仍由 detail 端点把关）。
+     */
+    List<PostItemVo> listByIds(java.util.Collection<Long> articleIds);
 }
