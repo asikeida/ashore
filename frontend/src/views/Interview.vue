@@ -3,7 +3,7 @@ import { nextTick, onMounted, ref } from 'vue'
 import { Promotion } from '@element-plus/icons-vue'
 import { ApiError } from '../api/client'
 import {
-  answerInterview,
+  answerInterviewStream,
   interviewHistory,
   startInterview,
   type InterviewMessage,
@@ -17,6 +17,7 @@ const answer = ref('')
 const error = ref('')
 const disabled = ref(false)
 const loading = ref(false)
+const streaming = ref(false)
 const threadEl = ref<HTMLElement | null>(null)
 
 async function load() {
@@ -40,29 +41,43 @@ async function scrollBottom() {
   threadEl.value?.scrollTo({ top: threadEl.value.scrollHeight, behavior: 'smooth' })
 }
 
+/** 流式作答：先落用户答案气泡，AI 气泡随增量增长；结束后端已落库，刷新历史即可对齐 */
 async function submitAnswer() {
   if (!answer.value.trim() || !sessionId.value || loading.value) return
+  const userAnswer = answer.value.trim()
   loading.value = true
+  streaming.value = true
+  messages.value.push({ role: 'USER', content: userAnswer, createTime: '' })
+  const aiBubble = refLikePush(messages.value)
+  answer.value = ''
+  await scrollBottom()
   try {
-    const reply = await answerInterview(sessionId.value, answer.value.trim())
-    // 先落用户答案，再追加 AI 回复
-    messages.value.push({
-      role: 'USER',
-      content: answer.value.trim(),
-      createTime: '',
+    await answerInterviewStream(sessionId.value, userAnswer, delta => {
+      aiBubble.content += delta
+      scrollBottom()
     })
-    messages.value.push({
-      role: 'INTERVIEWER',
-      content: reply.content,
-      createTime: '',
-    })
-    answer.value = ''
     await scrollBottom()
   } catch (e) {
+    // 失败时后端未落库——移除本地两条气泡让用户可安全重试
+    removeBubble(messages.value, aiBubble)
+    messages.value.pop()
     error.value = e instanceof ApiError ? e.message : 'AI 调用失败'
   } finally {
+    streaming.value = false
     loading.value = false
   }
+}
+
+/** 追加一个空的 INTERVIEWER 气泡并返回引用（流式增量填充） */
+function refLikePush(list: InterviewMessage[]): InterviewMessage {
+  const bubble: InterviewMessage = { role: 'INTERVIEWER', content: '', createTime: '' }
+  list.push(bubble)
+  return bubble
+}
+
+function removeBubble(list: InterviewMessage[], bubble: InterviewMessage) {
+  const idx = list.indexOf(bubble)
+  if (idx >= 0) list.splice(idx, 1)
 }
 
 onMounted(load)
@@ -108,13 +123,18 @@ onMounted(load)
             </div>
           </div>
 
-          <div v-if="loading" class="chat-row row-interviewer">
+          <div v-if="loading && messages.length === 0" class="chat-row row-interviewer">
             <div class="chat-who muted">面试官</div>
             <div class="chat-bubble chat-interviewer">
               <span class="typing-dots"><span></span><span></span><span></span></span>
-              <span class="muted" style="margin-left: 8px; font-size: 12px">
-                {{ messages.length === 0 ? '正在阅读面经并出题…' : '正在思考你的回答…' }}
-              </span>
+              <span class="muted" style="margin-left: 8px; font-size: 12px">正在阅读面经并出题…</span>
+            </div>
+          </div>
+          <div v-else-if="streaming" class="chat-row row-interviewer">
+            <div class="chat-who muted">面试官</div>
+            <div class="chat-bubble chat-interviewer">
+              <span class="typing-dots" style="margin-right: 8px"><span></span><span></span><span></span></span>
+              <span class="muted" style="font-size: 12px">正在输入…</span>
             </div>
           </div>
         </div>
@@ -125,7 +145,7 @@ onMounted(load)
             type="textarea"
             :autosize="{ minRows: 4, maxRows: 10 }"
             placeholder="输入你的回答…（Ctrl/⌘ + Enter 发送）"
-            :disabled="loading"
+            :disabled="loading || streaming"
             @keydown.ctrl.enter.prevent="submitAnswer"
             @keydown.meta.enter.prevent="submitAnswer"
           />

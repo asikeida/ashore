@@ -101,8 +101,29 @@ public class InterviewServiceImpl implements InterviewService {
     public InterviewReplyVo answer(Long sessionId, String answer, LoginUser candidate) {
         InterviewSessionDO session = requireOwn(sessionId, candidate);
         saveMessage(session.getId(), ROLE_USER, answer);
+        String reply = askForCritique(sessionId);
+        saveMessage(session.getId(), ROLE_INTERVIEWER, reply);
+        session.setQuestionCount(session.getQuestionCount() + 1);
+        sessionMapper.updateById(session);
+        return new InterviewReplyVo(String.valueOf(session.getId()), session.getQuestionCount(), reply);
+    }
 
-        // 携全量历史请 AI 点评+追问
+    @Override
+    public String answerStream(Long sessionId, String answer, LoginUser candidate,
+                               java.util.function.Consumer<String> onDelta) {
+        InterviewSessionDO session = requireOwn(sessionId, candidate);
+        // 携全量历史流式点评：不落库先跑——AI 全部成功后才统一持久化（失败重试无损），
+        // 且流式期间不持有事务/DB 连接（耗时以分钟计，事务包裹会长期占连接）
+        String reply = askForCritiqueStream(sessionId, answer, onDelta);
+        saveMessage(session.getId(), ROLE_USER, answer);
+        saveMessage(session.getId(), ROLE_INTERVIEWER, reply);
+        session.setQuestionCount(session.getQuestionCount() + 1);
+        sessionMapper.updateById(session);
+        return reply;
+    }
+
+    /** 组装点评上下文：同步路径答案已落库（pendingAnswer=null 只用历史）；流式路径答案未落库需追加 */
+    private List<AiChatClient.Message> critiqueContext(Long sessionId, String pendingAnswer) {
         List<AiChatClient.Message> chat = new ArrayList<>();
         chat.add(new AiChatClient.Message("system", SYSTEM_PROMPT + "候选人刚回答了你的问题。"
                 + "请先用一两句点评该回答（指出准确、遗漏或错误之处），再提出下一个技术追问。"));
@@ -110,13 +131,19 @@ public class InterviewServiceImpl implements InterviewService {
             chat.add(new AiChatClient.Message(
                     ROLE_INTERVIEWER.equals(m.getRole()) ? "assistant" : "user", m.getContent()));
         }
-        String reply = aiChatClient.chat(chat);
+        if (pendingAnswer != null && !pendingAnswer.isBlank()) {
+            chat.add(new AiChatClient.Message("user", pendingAnswer));
+        }
+        return chat;
+    }
 
-        saveMessage(session.getId(), ROLE_INTERVIEWER, reply);
-        session.setQuestionCount(session.getQuestionCount() + 1);
-        sessionMapper.updateById(session);
+    private String askForCritique(Long sessionId) {
+        return aiChatClient.chat(critiqueContext(sessionId, null));
+    }
 
-        return new InterviewReplyVo(String.valueOf(session.getId()), session.getQuestionCount(), reply);
+    private String askForCritiqueStream(Long sessionId, String pendingAnswer,
+                                        java.util.function.Consumer<String> onDelta) {
+        return aiChatClient.streamChat(critiqueContext(sessionId, pendingAnswer), onDelta);
     }
 
     @Override
