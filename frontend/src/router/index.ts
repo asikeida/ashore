@@ -8,6 +8,8 @@ const PostDetail = () => import('../views/PostDetail.vue')
 const PostEdit = () => import('../views/PostEdit.vue')
 const Interview = () => import('../views/Interview.vue')
 const Admin = () => import('../views/Admin.vue')
+const Profile = () => import('../views/Profile.vue')
+const InterviewHistory = () => import('../views/InterviewHistory.vue')
 
 export const router = createRouter({
   // history 模式：非 API 路径由 Nginx try_files 兜底回 index.html（生产）；
@@ -20,6 +22,8 @@ export const router = createRouter({
     { path: '/posts/:id', component: PostDetail, props: true },
     { path: '/write', component: PostEdit, meta: { requiresAuth: true } },
     { path: '/posts/:id/interview', component: Interview, meta: { requiresAuth: true }, props: true },
+    { path: '/profile', component: Profile, meta: { requiresAuth: true } },
+    { path: '/profile/interview/:sessionId', component: InterviewHistory, meta: { requiresAuth: true }, props: true },
     { path: '/admin', component: Admin, meta: { requiresAuth: true, requiresAdmin: true } },
   ],
 })

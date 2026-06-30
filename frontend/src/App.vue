@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { auth, refreshAuth, logout } from './stores/auth'
 import { ElConfigProvider } from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import { ChatDotRound, Document, EditPen, SwitchButton, UserFilled } from '@element-plus/icons-vue'
+import { ChatDotRound, Document, EditPen, SwitchButton, User, UserFilled } from '@element-plus/icons-vue'
 
 const router = useRouter()
 
@@ -41,7 +41,8 @@ async function handleLogout() {
                 </span>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <el-dropdown-item :icon="SwitchButton" @click="handleLogout">退出登录</el-dropdown-item>
+                    <el-dropdown-item :icon="User" @click="router.push('/profile')">个人主页</el-dropdown-item>
+                    <el-dropdown-item divided :icon="SwitchButton" @click="handleLogout">退出登录</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>

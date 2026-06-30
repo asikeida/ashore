@@ -17,6 +17,16 @@ public interface InterviewService {
     /** 作答：存答案 → 携历史请 AI 点评并追问 */
     InterviewReplyVo answer(Long sessionId, String answer, LoginUser candidate);
 
+    /**
+     * 流式作答：AI 点评+追问的增量片段实时回调 onDelta（SSE 透传）；
+     * 回复完成后统一落库（答案 + 完整点评 + 轮次+1）。
+     * <p>失败语义：流中途异常时不落任何消息（重试无损），异常上抛给控制器收尾。</p>
+     *
+     * @return 完整点评文本
+     */
+    String answerStream(Long sessionId, String answer, LoginUser candidate,
+                        java.util.function.Consumer<String> onDelta);
+
     /** 历史消息（仅本人） */
     List<InterviewMessageVo> history(Long sessionId, LoginUser candidate);
 }
