@@ -1,0 +1,30 @@
+# 唯一的开发 profile：本地运行后端，连远程共享开发库（默认值即隧道端口）。
+# 从仓库根目录启动以读取 .env（spring.config.import）；生产环境用 prod profile。
+# 端口语义：本地 13306 → 远程 MySQL 3306；16379 → 远程 Redis 6379；9200 → 远程 ES。
+# 离线 Docker 模式（compose.yaml）走标准端口 3306/6379，说明见 .env.example。
+# 本地允许开发占位密钥；生产环境（无 profile 的主配置）无默认值，漏配即失败
+ashore:
+  session:
+    jwt-secret: dev-secret-change-me
+
+spring:
+  config:
+    import: optional:file:./.env[.properties]
+  datasource:
+    url: ${ASHORE_DB_URL:jdbc:mysql://${ASHORE_DB_HOST:127.0.0.1}:${ASHORE_DB_PORT:13306}/${ASHORE_DB_NAME:ashore_dev}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${ASHORE_DB_USERNAME}
+    password: ${ASHORE_DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: 127.0.0.1
+      # .env 驱动：隧道模式 16379；离线 Docker 模式为标准端口 6379
+      port: ${ASHORE_REDIS_PORT:16379}
+      # 共享 Redis 开启了密码认证（.env 注入）；本地无密码容器留空即通过
+      password: ${ASHORE_REDIS_PASSWORD:}
+  elasticsearch:
+    # 经隧道 9200 → 远程 ES（dev-tunnel.sh）；隧道未起或 ES 不可用时搜索门面自动降级 LIKE
+    uris: ${ASHORE_SEARCH_URL:http://127.0.0.1:9200}

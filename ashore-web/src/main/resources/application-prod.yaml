@@ -17,6 +17,10 @@ spring:
       host: ${ASHORE_REDIS_HOST}
       port: ${ASHORE_REDIS_PORT:6379}
       password: ${ASHORE_REDIS_PASSWORD}
+  elasticsearch:
+    # 显式声明，不依赖框架默认值（此前 Spring Boot 内置默认恰为 localhost:9200 才工作）；
+    # 京东云上 Docker ES 监听本机 9200，与 dev 的隧道 9200 同占位符，可经环境变量覆盖
+    uris: ${ASHORE_SEARCH_URL:http://127.0.0.1:9200}
 management:
   endpoint:
     health:
