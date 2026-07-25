@@ -1,0 +1,4 @@
+# 镜像构建上下文裁剪：服务器上 build 时上下文只应包含 jar 所需最小集
+*
+!ashore-web/target/ashore-web-0.0.1-SNAPSHOT.jar
+!Dockerfile
