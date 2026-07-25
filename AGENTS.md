@@ -8,7 +8,7 @@ Ashore（上岸）是一个面经分享与 AI 模拟面试的技术社区，也�
 
 技术栈：Java 21、Spring Boot 3.5.6、MyBatis-Plus 3.5.18、Maven。数据库迁移使用 Flyway（M1 引入），Redis 与搜索按规划在后续里程碑引入。本地开发模式：不使用 Issue、Pull Request、CI/CD。
 
-> 版本说明：曾试验 Spring Boot 4.1.1，但 MyBatis-Plus 3.5.18 的自动配置在 SB4 下不生效（已实测验证），按既定决策回退 SB 3.5.x 并保留 MyBatis-Plus。详见 `docs/开发规划/01-工程约定与DocWeave迁移方案.md`。
+> 版本说明：曾试验 Spring Boot 4.1.1，但 MyBatis-Plus 3.5.18 的自动配置在 SB4 下不生效（已实测验证），按既定决策回退 SB 3.5.x 并保留 MyBatis-Plus。详见 `docs/开发规划/01-工程约定与工程迁移方案.md`。
 
 ## 2. 开始任务前必读
 
