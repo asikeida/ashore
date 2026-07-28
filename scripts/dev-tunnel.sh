@@ -3,7 +3,7 @@
 #   13306 -> 3306 (MySQL，/opt/projects-infra/mysql 共享实例)
 #   16379 -> 6379 (Redis，/opt/projects-infra/redis，有密码)
 #    9200 -> 9200 (Elasticsearch，/opt/projects-infra/elasticsearch)
-# 用法：./scripts/dev-tunnel.sh （保持前台运行；应用用 --spring.profiles.active=server 连接）
+# 用法：./scripts/dev-tunnel.sh （保持前台运行；应用用 --spring.profiles.active=dev 连接）
 # 依赖：~/.ssh/config 中的 mine-asikeida 主机别名（免密登录）
 #
 # 自动重连：空闲连接会被中间设备 RST（2026-11-06/07 实测多次，keepalive 也拦不住），

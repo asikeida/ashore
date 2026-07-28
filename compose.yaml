@@ -8,8 +8,8 @@ services:
       MYSQL_PASSWORD: ${ASHORE_DB_PASSWORD:?Set ASHORE_DB_PASSWORD in .env}
       MYSQL_ROOT_PASSWORD: ${ASHORE_DB_ROOT_PASSWORD:?Set ASHORE_DB_ROOT_PASSWORD in .env}
     ports:
-      # 3307 避免与 DocWeave 等本机 MySQL 占用冲突，可在 .env 覆盖
-      - "127.0.0.1:${ASHORE_DB_PORT:-3307}:3306"
+      # 容器 3306 直出宿主机标准端口（可经 .env 覆盖）
+      - "127.0.0.1:${ASHORE_DB_PORT:-3306}:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -27,8 +27,8 @@ services:
     image: redis:7
     container_name: ashore-redis
     ports:
-      # 6380 避免与默认 6379 冲突，可在 .env 覆盖
-      - "127.0.0.1:${ASHORE_REDIS_PORT:-6380}:6379"
+      # 容器 6379 直出宿主机标准端口（可经 .env 覆盖）
+      - "127.0.0.1:${ASHORE_REDIS_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
     healthcheck:

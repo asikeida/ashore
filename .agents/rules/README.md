@@ -1,6 +1,6 @@
 # AI 开发规范索引
 
-这些规则是 Ashore 的 AI 协作规范源，沿用 DocWeave 已验证的体系并按本项目决策裁剪。使用中文编写，适用于 ZCode、Codex 以及其他能够读取仓库 Markdown 的 Agent。
+这些规则是 Ashore 的 AI 协作规范源，沿用既有项目验证过的体系并按本项目决策裁剪。使用中文编写，适用于 ZCode、Codex 以及其他能够读取仓库 Markdown 的 Agent。
 
 根目录 `AGENTS.md` 是所有 Agent 的入口。开始工作时先读 `AGENTS.md`，再根据任务类型阅读下列文件。
 
