@@ -1,0 +1,8 @@
+# service 模块测试共享配置：敏感值与 dev profile 同源——读仓库根 .env（config.import）。
+# 此前测试密码只认 shell 环境变量（@SpringBootTest 内联占位符），新终端未 export 即
+# 全体 NOAUTH（2026-11-08 实测）；导入 .env 后配置跟仓库走，不跟终端走。
+# 测试工作目录随执行器而变（Maven=模块目录，IDEA 可能为仓库根），两级路径都尝试。
+# 注意：@SpringBootTest 的内联 properties 优先级更高，.env 不会反向覆盖测试声明。
+spring:
+  config:
+    import: optional:file:./.env[.properties],optional:file:../.env[.properties]

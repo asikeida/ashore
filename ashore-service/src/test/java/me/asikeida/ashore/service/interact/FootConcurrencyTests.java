@@ -3,7 +3,6 @@ package me.asikeida.ashore.service.interact;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import java.net.Socket;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -16,6 +15,7 @@ import java.util.stream.IntStream;
 import me.asikeida.ashore.api.context.LoginUser;
 import me.asikeida.ashore.api.enums.ArticleStatus;
 import me.asikeida.ashore.api.enums.FootTypeEnum;
+import me.asikeida.ashore.service.RedisTunnelProbe;
 import me.asikeida.ashore.service.ServiceDaoTestBootstrap;
 import me.asikeida.ashore.service.article.repository.entity.ArticleDO;
 import me.asikeida.ashore.service.article.repository.mapper.ArticleMapper;
@@ -89,11 +89,8 @@ class FootConcurrencyTests {
     }
 
     private boolean tunnelUp() {
-        try (Socket socket = new Socket("127.0.0.1", 16379)) {
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+        // 门控升级为完整 AUTH+PING 握手：端口在但转发死/密码缺失时优雅跳过而非 NOAUTH 报错
+        return RedisTunnelProbe.available();
     }
 
     @Test
