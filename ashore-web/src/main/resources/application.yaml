@@ -42,13 +42,6 @@ ashore:
         base-url: https://open.bigmodel.cn/api/paas/v4
         api-key: ${AI_ZHIPU_API_KEY:}
         model: glm-4-flash
-  oauth:
-    github:
-      # 为空表示未启用（端点返回 503001）；启用：注册 GitHub OAuth App 并注入环境变量
-      client-id: ${GITHUB_OAUTH_CLIENT_ID:}
-      client-secret: ${GITHUB_OAUTH_CLIENT_SECRET:}
-      redirect-uri: ${GITHUB_OAUTH_REDIRECT_URI:http://127.0.0.1:8080/api/v1/auth/oauth/github/callback}
-
 logging:
   pattern:
     # [%X{requestId}] 为 MDC 插槽：RequestIDFilter 写入后，本轮所有日志行自动携带同一请求标识

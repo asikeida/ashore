@@ -36,9 +36,6 @@ public class UserDO {
     /** BCrypt 哈希；OAuth 用户为空 */
     private String passwordHash;
 
-    /** GitHub 用户 ID（OAuth 登录绑定）；非 OAuth 用户为空 */
-    private Long githubId;
-
     private String nickname;
 
     /** 角色：USER / ADMIN */
