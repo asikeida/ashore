@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import me.asikeida.ashore.api.context.LoginUser;
 import me.asikeida.ashore.api.context.ReqContext;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import me.asikeida.ashore.api.resp.ResVo;
 import me.asikeida.ashore.api.vo.post.CommentPageVo;
 import me.asikeida.ashore.api.vo.post.CommentReplyVo;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 评论端点：发表（登录）、两级折叠列表（公开）、软删除（作者或管理员）。
  */
+@Tag(name = "评论", description = "面经评论：发表、两级折叠列表与软删除")
 @RestController
 @RequestMapping("/api/v1")
 public class CommentController {
