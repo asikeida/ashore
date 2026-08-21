@@ -270,7 +270,8 @@ public class ArticleServiceImpl implements ArticleService {
                 .map(a -> new PostItemVo(String.valueOf(a.getId()), a.getTitle(),
                         tagsByArticle.getOrDefault(a.getId(), List.of()),
                         nicknameByAuthor.get(a.getAuthorId()),
-                        a.getCreateTime() == null ? null : a.getCreateTime().toString()))
+                        a.getCreateTime() == null ? null : a.getCreateTime().toString(),
+                        a.getToppingStat() != null && a.getToppingStat() == 1))
                 .toList();
 
         String nextCursor = articles.size() == pageSize ? toCursor(articles.get(articles.size() - 1)) : null;
@@ -424,8 +425,16 @@ public class ArticleServiceImpl implements ArticleService {
                 .map(a -> AdminPostItemVo.of(new PostItemVo(String.valueOf(a.getId()), a.getTitle(),
                         tagsByArticle.getOrDefault(a.getId(), List.of()),
                         nicknameByAuthor.getOrDefault(a.getAuthorId(), "岸友"),
-                        a.getCreateTime() == null ? null : a.getCreateTime().toString()), a.getStatus()))
+                        a.getCreateTime() == null ? null : a.getCreateTime().toString(),
+                        a.getToppingStat() != null && a.getToppingStat() == 1), a.getStatus()))
                 .toList();
+    }
+
+    @Override
+    public void setTopping(Long articleId, boolean topped, LoginUser operator) {
+        ArticleDO article = requireArticle(articleId);
+        article.setToppingStat(topped ? 1 : 0);
+        articleMapper.updateById(article);
     }
 
     @Override
@@ -447,9 +456,10 @@ public class ArticleServiceImpl implements ArticleService {
                 .map(a -> new PostItemVo(String.valueOf(a.getId()), a.getTitle(),
                         tagsByArticle.getOrDefault(a.getId(), List.of()),
                         nicknameByAuthor.getOrDefault(a.getAuthorId(), "岸友"),
-                        a.getCreateTime() == null ? null : a.getCreateTime().toString()))
+                        a.getCreateTime() == null ? null : a.getCreateTime().toString(),
+                        a.getToppingStat() != null && a.getToppingStat() == 1))
                 .toList();
-    }
+}
 
     @Override
     public int reindexSearch() {

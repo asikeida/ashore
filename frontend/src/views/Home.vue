@@ -102,7 +102,9 @@ onMounted(loadMore)
     <template v-else>
       <el-skeleton :loading="loading && items.length === 0" :rows="4" animated>
         <article v-for="item in items" :key="item.id" class="panel panel-hover post-card">
-          <RouterLink :to="`/posts/${item.id}`" class="item-title">{{ item.title }}</RouterLink>
+          <RouterLink :to="`/posts/${item.id}`" class="item-title">
+            <el-tag v-if="item.topped" type="danger" size="small" effect="dark" round style="margin-right: 6px">置顶</el-tag>{{ item.title }}
+          </RouterLink>
           <div class="muted meta-row">
             {{ item.authorNickname }} · {{ formatTime(item.createTime) }}
           </div>

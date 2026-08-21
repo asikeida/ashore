@@ -4,11 +4,16 @@ import type { PostItem } from './post'
 /** 管理台文章列表（含 status 字段） */
 export interface AdminPostItem extends PostItem {
   status: string
+  topped: boolean
 }
 
 export async function fetchAdminPosts(status?: string): Promise<AdminPostItem[]> {
   const params = status ? `?status=${status}` : ''
   return apiGet<AdminPostItem[]>(`/api/v1/admin/posts${params}`)
+}
+
+export async function setPostTopping(id: string, topped: boolean): Promise<void> {
+  return apiPost<void>(`/api/v1/admin/posts/${id}/topping?topped=${topped}`)
 }
 
 export async function setPostOnline(id: string): Promise<void> {
