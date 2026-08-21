@@ -1,20 +1,23 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { CircleCheck, CircleClose, Lock, Unlock } from '@element-plus/icons-vue'
 import { ApiError } from '../api/client'
 import {
   fetchAdminPosts,
   setPostOffline,
   setPostOnline,
+  fetchAdminUsers,
+  banUser,
+  unbanUser,
   type AdminPostItem,
+  type AdminUserItem,
 } from '../api/admin'
 
-const items = ref<AdminPostItem[]>([])
-const filter = ref<'REVIEW' | 'ONLINE' | 'OFFLINE' | ''>('REVIEW')
-const error = ref('')
-const loading = ref(false)
-const actingId = ref<string | null>(null)
+// ── 面经审核 tab ──────────────────────────────────────────────
+const posts = ref<AdminPostItem[]>([])
+const postFilter = ref<'REVIEW' | 'ONLINE' | 'OFFLINE' | ''>('REVIEW')
+const postsLoading = ref(false)
 
 const STATUS_META: Record<string, { label: string; type: 'warning' | 'success' | 'info' }> = {
   REVIEW: { label: '待审核', type: 'warning' },
@@ -22,37 +25,88 @@ const STATUS_META: Record<string, { label: string; type: 'warning' | 'success' |
   OFFLINE: { label: '已下线', type: 'info' },
 }
 
-async function load() {
-  loading.value = true
-  error.value = ''
+async function loadPosts() {
+  postsLoading.value = true
   try {
-    items.value = await fetchAdminPosts(filter.value || undefined)
+    posts.value = await fetchAdminPosts(postFilter.value || undefined)
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : '加载失败'
+    ElMessage.error(e instanceof ApiError ? e.message : '加载失败')
   } finally {
-    loading.value = false
+    postsLoading.value = false
   }
 }
 
 async function online(id: string) {
-  actingId.value = id
   try {
     await setPostOnline(id)
     ElMessage.success('已上线')
-    await load()
-  } finally {
-    actingId.value = null
+    await loadPosts()
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '操作失败')
   }
 }
 
 async function offline(id: string) {
-  actingId.value = id
   try {
     await setPostOffline(id)
     ElMessage.success('已下线/驳回')
-    await load()
+    await loadPosts()
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '操作失败')
+  }
+}
+
+// ── 用户管理 tab ──────────────────────────────────────────────
+// list 端点不返回 status（UserVo 无此字段），本地记录本次会话内封禁过的用户，
+// 仅用于按钮展示；刷新后以接口能力为准（封禁 ADMIN/自己由后端防线兜底提示）
+const users = ref<AdminUserItem[]>([])
+const userKeyword = ref('')
+const usersLoading = ref(false)
+const actingUserId = ref<string | null>(null)
+
+async function loadUsers() {
+  usersLoading.value = true
+  try {
+    users.value = await fetchAdminUsers(userKeyword.value.trim() || undefined)
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '加载失败')
   } finally {
-    actingId.value = null
+    usersLoading.value = false
+  }
+}
+
+async function ban(user: AdminUserItem) {
+  try {
+    await ElMessageBox.confirm(
+      `确认封禁「${user.nickname || user.account}」？其全部登录会话将即刻失效。`,
+      '封禁用户',
+      { confirmButtonText: '封禁', cancelButtonText: '取消', type: 'warning' },
+    )
+  } catch {
+    return // 用户取消
+  }
+  actingUserId.value = user.id
+  try {
+    await banUser(user.id)
+    ElMessage.success('已封禁并强制下线')
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '操作失败')
+  } finally {
+    actingUserId.value = null
+    await loadUsers()
+  }
+}
+
+async function unban(user: AdminUserItem) {
+  actingUserId.value = user.id
+  try {
+    await unbanUser(user.id)
+    ElMessage.success('已解封')
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '操作失败')
+  } finally {
+    actingUserId.value = null
+    await loadUsers()
   }
 }
 
@@ -60,84 +114,140 @@ function formatTime(time: string): string {
   return time.replace('T', ' ').slice(0, 16)
 }
 
-onMounted(load)
+const activeTab = ref<'posts' | 'users'>('posts')
+
+onMounted(loadPosts)
 </script>
 
 <template>
   <div class="container-wide">
     <div class="panel">
-      <div class="admin-head">
-        <h2 style="margin: 0">管理台 · 面经审核</h2>
-        <el-radio-group v-model="filter" @change="load">
-          <el-radio-button value="">全部</el-radio-button>
-          <el-radio-button value="REVIEW">待审核</el-radio-button>
-          <el-radio-button value="ONLINE">已上线</el-radio-button>
-          <el-radio-button value="OFFLINE">已下线</el-radio-button>
-        </el-radio-group>
-      </div>
+      <el-tabs v-model="activeTab">
+        <el-tab-pane label="面经审核" name="posts">
+          <div class="admin-head">
+            <el-radio-group v-model="postFilter" @change="loadPosts">
+              <el-radio-button value="">全部</el-radio-button>
+              <el-radio-button value="REVIEW">待审核</el-radio-button>
+              <el-radio-button value="ONLINE">已上线</el-radio-button>
+              <el-radio-button value="OFFLINE">已下线</el-radio-button>
+            </el-radio-group>
+          </div>
 
-      <el-alert
-        v-if="error"
-        :title="error"
-        type="error"
-        show-icon
-        :closable="false"
-        style="margin: 12px 0"
-      />
+          <el-table
+            v-loading="postsLoading"
+            :data="posts"
+            style="width: 100%"
+            empty-text="没有符合条件的面经"
+          >
+            <el-table-column label="标题" min-width="260">
+              <template #default="{ row }">
+                <RouterLink :to="`/posts/${row.id}`" class="table-title">{{ row.title }}</RouterLink>
+              </template>
+            </el-table-column>
+            <el-table-column prop="authorNickname" label="作者" width="120" />
+            <el-table-column label="时间" width="140">
+              <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
+            </el-table-column>
+            <el-table-column label="状态" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag :type="STATUS_META[row.status]?.type ?? 'info'" effect="light" round>
+                  {{ STATUS_META[row.status]?.label ?? row.status }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="190" align="center">
+              <template #default="{ row }">
+                <el-popconfirm
+                  v-if="row.status === 'REVIEW'"
+                  title="确认审核通过并上线？"
+                  confirm-button-text="上线"
+                  cancel-button-text="取消"
+                  @confirm="online(row.id)"
+                >
+                  <template #reference>
+                    <el-button type="primary" size="small" :icon="CircleCheck" :loading="actingUserId === row.id">
+                      审核上线
+                    </el-button>
+                  </template>
+                </el-popconfirm>
+                <el-popconfirm
+                  v-if="row.status === 'ONLINE' || row.status === 'REVIEW'"
+                  title="确认下线 / 驳回？"
+                  confirm-button-text="下线"
+                  cancel-button-text="取消"
+                  @confirm="offline(row.id)"
+                >
+                  <template #reference>
+                    <el-button size="small" :icon="CircleClose" :loading="actingUserId === row.id">
+                      下线 / 驳回
+                    </el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
 
-      <el-table
-        v-loading="loading"
-        :data="items"
-        style="width: 100%"
-        empty-text="没有符合条件的面经"
-      >
-        <el-table-column label="标题" min-width="260">
-          <template #default="{ row }">
-            <RouterLink :to="`/posts/${row.id}`" class="table-title">{{ row.title }}</RouterLink>
-          </template>
-        </el-table-column>
-        <el-table-column prop="authorNickname" label="作者" width="120" />
-        <el-table-column label="时间" width="140">
-          <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
-        </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="STATUS_META[row.status]?.type ?? 'info'" effect="light" round>
-              {{ STATUS_META[row.status]?.label ?? row.status }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="190" align="center">
-          <template #default="{ row }">
-            <el-popconfirm
-              v-if="row.status === 'REVIEW'"
-              title="确认审核通过并上线？"
-              confirm-button-text="上线"
-              cancel-button-text="取消"
-              @confirm="online(row.id)"
+        <el-tab-pane label="用户管理" name="users" lazy>
+          <div class="admin-head">
+            <el-input
+              v-model="userKeyword"
+              placeholder="按账号搜索"
+              clearable
+              style="max-width: 280px"
+              @keyup.enter="loadUsers"
+              @clear="loadUsers"
             >
-              <template #reference>
-                <el-button type="primary" size="small" :icon="CircleCheck" :loading="actingId === row.id">
-                  审核上线
+              <template #append>
+                <el-button @click="loadUsers">搜索</el-button>
+              </template>
+            </el-input>
+          </div>
+
+          <el-table
+            v-loading="usersLoading"
+            :data="users"
+            style="width: 100%"
+            empty-text="没有匹配的用户"
+          >
+            <el-table-column prop="account" label="账号" min-width="180" />
+            <el-table-column prop="nickname" label="昵称" min-width="140" />
+            <el-table-column label="角色" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag :type="row.role === 'ADMIN' ? 'danger' : 'info'" effect="light" round>
+                  {{ row.role }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="160" align="center">
+              <template #default="{ row }">
+                <!-- ADMIN 行不渲染封禁按钮（后端防线兜底，前端隐藏减少误触） -->
+                <el-popconfirm
+                  v-if="row.role !== 'ADMIN'"
+                  title="封禁后其全部登录会话即刻失效，确认？"
+                  confirm-button-text="封禁"
+                  cancel-button-text="取消"
+                  @confirm="ban(row)"
+                >
+                  <template #reference>
+                    <el-button type="danger" size="small" :icon="Lock" :loading="actingUserId === row.id">
+                      封禁
+                    </el-button>
+                  </template>
+                </el-popconfirm>
+                <el-button
+                  size="small"
+                  :icon="Unlock"
+                  :loading="actingUserId === row.id"
+                  @click="unban(row)"
+                >
+                  解封
                 </el-button>
               </template>
-            </el-popconfirm>
-            <el-popconfirm
-              v-if="row.status === 'ONLINE' || row.status === 'REVIEW'"
-              title="确认下线 / 驳回？"
-              confirm-button-text="下线"
-              cancel-button-text="取消"
-              @confirm="offline(row.id)"
-            >
-              <template #reference>
-                <el-button size="small" :icon="CircleClose" :loading="actingId === row.id">
-                  下线 / 驳回
-                </el-button>
-              </template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-      </el-table>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+      </el-tabs>
     </div>
   </div>
 </template>
