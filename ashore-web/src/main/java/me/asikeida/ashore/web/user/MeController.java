@@ -6,6 +6,7 @@ import java.util.List;
 import me.asikeida.ashore.api.context.LoginUser;
 import me.asikeida.ashore.api.context.ReqContext;
 import me.asikeida.ashore.api.resp.ResVo;
+import me.asikeida.ashore.api.vo.profile.MeArticleItemVo;
 import me.asikeida.ashore.api.vo.profile.MeFootItemVo;
 import me.asikeida.ashore.api.vo.profile.MeInterviewItemVo;
 import me.asikeida.ashore.core.permission.Permission;
@@ -51,5 +52,13 @@ public class MeController {
     public ResVo<List<MeInterviewItemVo>> interviews() {
         LoginUser user = ReqContext.loginUser();
         return ResVo.ok(meService.myInterviews(user.userId()));
+    }
+
+    @Operation(summary = "我的面经", description = "我发布的面经（含审核状态与阅读/点赞/收藏/评论计数），创建时间倒序——作者的作品全景")
+    @Permission
+    @GetMapping("/articles")
+    public ResVo<List<MeArticleItemVo>> myArticles() {
+        LoginUser user = ReqContext.loginUser();
+        return ResVo.ok(meService.myArticles(user.userId()));
     }
 }

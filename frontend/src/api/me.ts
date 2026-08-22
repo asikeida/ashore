@@ -32,3 +32,20 @@ export async function fetchMyPraises(): Promise<MeFootItem[]> {
 export async function fetchMyInterviews(): Promise<MeInterviewItem[]> {
   return apiGet<MeInterviewItem[]>('/api/v1/me/interviews')
 }
+
+/** 我发布的面经（含审核状态与四项计数） */
+export interface MeArticleItem {
+  articleId: string
+  title: string
+  tags: string[]
+  status: string // REVIEW / ONLINE / OFFLINE
+  createTime: string
+  read: number
+  praise: number
+  collect: number
+  comment: number
+}
+
+export async function fetchMyArticles(): Promise<MeArticleItem[]> {
+  return apiGet<MeArticleItem[]>('/api/v1/me/articles')
+}
