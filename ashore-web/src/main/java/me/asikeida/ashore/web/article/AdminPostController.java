@@ -9,6 +9,8 @@ import me.asikeida.ashore.service.article.service.ArticleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -35,5 +37,13 @@ public class AdminPostController {
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "50") Integer limit) {
         return ResVo.ok(articleService.adminList(status, limit));
+    }
+
+    @Operation(summary = "置顶/取消置顶", description = "仅管理员；topped=true 置顶 / false 取消；写列表排序第一键，即时生效")
+    @Permission(UserRole.ADMIN)
+    @PostMapping("/{id}/topping")
+    public ResVo<Void> setTopping(@PathVariable Long id, @RequestParam boolean topped) {
+        articleService.setTopping(id, topped, me.asikeida.ashore.api.context.ReqContext.loginUser());
+        return ResVo.ok();
     }
 }

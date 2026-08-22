@@ -7,6 +7,7 @@ import {
   fetchAdminPosts,
   setPostOffline,
   setPostOnline,
+  setPostTopping,
   fetchAdminUsers,
   banUser,
   unbanUser,
@@ -50,6 +51,16 @@ async function offline(id: string) {
   try {
     await setPostOffline(id)
     ElMessage.success('已下线/驳回')
+    await loadPosts()
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '操作失败')
+  }
+}
+
+async function toggleTopping(row: AdminPostItem) {
+  try {
+    await setPostTopping(row.id, !row.topped)
+    ElMessage.success(row.topped ? '已取消置顶' : '已置顶')
     await loadPosts()
   } catch (e) {
     ElMessage.error(e instanceof ApiError ? e.message : '操作失败')
@@ -153,9 +164,10 @@ onMounted(loadPosts)
                 <el-tag :type="STATUS_META[row.status]?.type ?? 'info'" effect="light" round>
                   {{ STATUS_META[row.status]?.label ?? row.status }}
                 </el-tag>
+                <el-tag v-if="row.topped" type="danger" size="small" effect="dark" round style="margin-left: 4px">顶</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="190" align="center">
+            <el-table-column label="操作" width="260" align="center">
               <template #default="{ row }">
                 <el-popconfirm
                   v-if="row.status === 'REVIEW'"
@@ -183,6 +195,14 @@ onMounted(loadPosts)
                     </el-button>
                   </template>
                 </el-popconfirm>
+                <el-button
+                  size="small"
+                  :type="row.topped ? 'warning' : 'default'"
+                  :loading="actingUserId === row.id"
+                  @click="toggleTopping(row)"
+                >
+                  {{ row.topped ? '取消置顶' : '置顶' }}
+                </el-button>
               </template>
             </el-table-column>
           </el-table>

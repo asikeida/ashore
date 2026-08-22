@@ -7,6 +7,7 @@ export interface PostItem {
   tags: string[]
   authorNickname: string
   createTime: string
+  topped?: boolean
 }
 
 /** 面经详情 */

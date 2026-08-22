@@ -2,6 +2,7 @@ package me.asikeida.ashore.web.article;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -174,5 +175,69 @@ class ArticleListTests {
         mvc.perform(get("/api/v1/posts").param("cursor", "not-a-cursor"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status.code").value(400001));
+    }
+
+    // ── 置顶管理（feat/article-置顶管理）────────────────────────────
+
+    /** 造一个 ADMIN 身份的会话桩（setUp 只桩了 author/USER） */
+    private void stubAdmin(String token) {
+        when(sessionService.validate(token)).thenReturn(new LoginUser(999L, "admin", "ADMIN"));
+    }
+
+    @Test
+    void toppingRequiresAdmin() throws Exception {
+        Long id = seedArticle("待置顶面经", 0, LocalDateTime.now().withNano(0));
+
+        // USER 角色请求 → 403（拦截器 ADMIN 判定，Service 未被触达）
+        mvc.perform(post("/api/v1/admin/posts/" + id + "/topping").param("topped", "true")
+                        .cookie(new Cookie(COOKIE, "author-token")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status.code").value(403001));
+    }
+
+    @Test
+    void toppingFlipsFlagAndListOrderFollowsImmediately() throws Exception {
+        stubAdmin("admin-token");
+        LocalDateTime base = LocalDateTime.now().withNano(0);
+        Long newer = seedArticle("较新的普通文", 0, base);
+        Long older = seedArticle("较旧的普通文", 0, base.minusHours(1)); // 无置顶时它排后面
+
+        // 置顶较旧的文：拉取足够大的窗口，断言两篇的相对顺序翻转（不假设全局位次——
+        // 类级共享 H2 库中可能有其他用例的置顶数据，绝对位置断言会跨方法污染）
+        mvc.perform(post("/api/v1/admin/posts/" + older + "/topping").param("topped", "true")
+                        .cookie(new Cookie(COOKIE, "admin-token")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status.code").value(0));
+
+        String body = mvc.perform(get("/api/v1/posts").param("limit", "50"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        List<String> ids = JsonPath.read(body, "$.result.items[*].id");
+        int idxOlder = ids.indexOf(String.valueOf(older));
+        int idxNewer = ids.indexOf(String.valueOf(newer));
+        org.assertj.core.api.Assertions.assertThat(idxOlder)
+                .as("置顶后较旧文应排到较新文之前（topping DESC 生效）").isLessThan(idxNewer);
+        // topped 标记透出（按 id 定位，不依赖绝对位置）
+        org.assertj.core.api.Assertions.assertThat(
+                (Boolean) JsonPath.read(body, "$.result.items[" + idxOlder + "].topped")).isTrue();
+        org.assertj.core.api.Assertions.assertThat(
+                (Boolean) JsonPath.read(body, "$.result.items[" + idxNewer + "].topped")).isFalse();
+
+        // 取消置顶 → 相对顺序恢复按时间（newer 回到 older 之前）
+        mvc.perform(post("/api/v1/admin/posts/" + older + "/topping").param("topped", "false")
+                        .cookie(new Cookie(COOKIE, "admin-token")))
+                .andExpect(status().isOk());
+        String body2 = mvc.perform(get("/api/v1/posts").param("limit", "50"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        List<String> ids2 = JsonPath.read(body2, "$.result.items[*].id");
+        org.assertj.core.api.Assertions.assertThat(ids2.indexOf(String.valueOf(newer)))
+                .as("取消置顶后恢复按时间排序").isLessThan(ids2.indexOf(String.valueOf(older)));
+    }
+
+    @Test
+    void toppingMissingArticleReturnsNotFound() throws Exception {
+        stubAdmin("admin-token");
+        mvc.perform(post("/api/v1/admin/posts/424242/topping").param("topped", "true")
+                        .cookie(new Cookie(COOKIE, "admin-token")))
+                .andExpect(status().isNotFound());
     }
 }

@@ -57,6 +57,14 @@ public interface ArticleService {
     List<AdminPostItemVo> adminList(String status, Integer limit);
 
     /**
+     * 置顶/取消置顶（仅管理员）：写 topping_stat（列表排序第一键）。
+     * 不做状态校验——置顶是运营标记，与审核状态正交（OFFLINE 的文也可预置顶）。
+     *
+     * @param topped true 置顶 / false 取消
+     */
+    void setTopping(Long articleId, boolean topped, LoginUser operator);
+
+    /**
      * 搜索索引全量重建：把全部 ONLINE 面经重新写入 ES 当前版本索引。
      * 场景：索引版本升级（v1→v2 换分词器/映射）后迁移存量数据；同步是旁路，单篇失败仅告警。
      *
