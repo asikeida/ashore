@@ -1,6 +1,7 @@
 package me.asikeida.ashore.service.profile.service;
 
 import java.util.List;
+import me.asikeida.ashore.api.vo.profile.MeArticleItemVo;
 import me.asikeida.ashore.api.vo.profile.MeFootItemVo;
 import me.asikeida.ashore.api.vo.profile.MeInterviewItemVo;
 
@@ -19,4 +20,7 @@ public interface MeService {
 
     /** 我的 AI 面试会话（按最近活跃倒序，上限 20） */
     List<MeInterviewItemVo> myInterviews(Long userId);
+
+    /** 我发布的面经（含审核状态与四项计数，创建时间倒序，上限 50）——作者的作品全景 */
+    List<MeArticleItemVo> myArticles(Long userId);
 }

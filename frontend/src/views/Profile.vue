@@ -1,22 +1,31 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ChatDotRound, Collection, Pointer } from '@element-plus/icons-vue'
+import { ChatDotRound, Collection, Pointer, View } from '@element-plus/icons-vue'
 import {
+  fetchMyArticles,
   fetchMyCollects,
   fetchMyInterviews,
   fetchMyPraises,
+  type MeArticleItem,
   type MeFootItem,
   type MeInterviewItem,
 } from '../api/me'
 import { auth } from '../stores/auth'
 
-const activeTab = ref<'collects' | 'praises' | 'interviews'>('collects')
+const activeTab = ref<'articles' | 'collects' | 'praises' | 'interviews'>('articles')
+const myArticles = ref<MeArticleItem[]>([])
 const collects = ref<MeFootItem[]>([])
 const praises = ref<MeFootItem[]>([])
 const interviews = ref<MeInterviewItem[]>([])
 const loading = ref(false)
 const router = useRouter()
+
+const STATUS_META: Record<string, { label: string; type: 'warning' | 'success' | 'info' }> = {
+  REVIEW: { label: '审核中', type: 'warning' },
+  ONLINE: { label: '已上线', type: 'success' },
+  OFFLINE: { label: '已下线', type: 'info' },
+}
 
 function formatTime(time: string | null): string {
   return time ? time.replace('T', ' ').slice(0, 16) : ''
@@ -25,6 +34,7 @@ function formatTime(time: string | null): string {
 async function loadAll() {
   loading.value = true
   try {
+    myArticles.value = await fetchMyArticles()
     collects.value = await fetchMyCollects()
     praises.value = await fetchMyPraises()
     interviews.value = await fetchMyInterviews()
@@ -48,11 +58,44 @@ onMounted(loadAll)
         <el-avatar :size="44" class="profile-avatar">{{ auth.account?.[0] ?? '?' }}</el-avatar>
         <div>
           <h2 style="margin: 0">{{ auth.account }}</h2>
-          <p class="muted" style="margin: 2px 0 0">我的复习角：收藏与点赞的面经、AI 面试记录都在这里</p>
+          <p class="muted" style="margin: 2px 0 0">我的面经、收藏点赞复习角、AI 面试记录都在这里</p>
         </div>
       </div>
 
       <el-tabs v-model="activeTab">
+        <el-tab-pane label="我的面经" name="articles">
+          <el-empty
+            v-if="myArticles.length === 0 && !loading"
+            :image-size="72"
+            description="还没有发布过面经——去写下第一篇吧"
+          />
+          <el-table :data="myArticles" style="width: 100%" empty-text="暂无面经">
+            <el-table-column label="标题" min-width="240">
+              <template #default="{ row }">
+                <RouterLink :to="`/posts/${row.articleId}`" class="table-title">{{ row.title }}</RouterLink>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag :type="STATUS_META[row.status]?.type ?? 'info'" size="small" round>
+                  {{ STATUS_META[row.status]?.label ?? row.status }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="数据" width="240" align="center">
+              <template #default="{ row }">
+                <span class="stat-item" :title="'阅读 ' + row.read"><el-icon><View /></el-icon>{{ row.read }}</span>
+                <span class="stat-item" :title="'点赞 ' + row.praise">{{ row.praise }} 赞</span>
+                <span class="stat-item" :title="'收藏 ' + row.collect">{{ row.collect }} 藏</span>
+                <span class="stat-item" :title="'评论 ' + row.comment">{{ row.comment }} 评</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="发布时间" width="150">
+              <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+
         <el-tab-pane label="我的收藏" name="collects">
           <el-empty
             v-if="collects.length === 0 && !loading"
@@ -184,5 +227,14 @@ onMounted(loadAll)
 
 .table-title:hover {
   color: var(--accent);
+}
+
+.stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 8px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
 }
 </style>

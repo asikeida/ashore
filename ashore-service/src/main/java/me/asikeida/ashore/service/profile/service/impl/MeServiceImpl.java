@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import me.asikeida.ashore.api.enums.FootTypeEnum;
+import me.asikeida.ashore.api.vo.profile.MeArticleItemVo;
 import me.asikeida.ashore.api.vo.profile.MeFootItemVo;
 import me.asikeida.ashore.api.vo.profile.MeInterviewItemVo;
 import me.asikeida.ashore.api.vo.post.PostItemVo;
@@ -37,12 +38,16 @@ public class MeServiceImpl implements MeService {
 
     private final ArticleService articleService;
 
+    private final me.asikeida.ashore.service.interact.service.CountService countService;
+
     public MeServiceImpl(UserFootMapper footMapper, ArticleMapper articleMapper,
-                         InterviewSessionMapper interviewSessionMapper, ArticleService articleService) {
+                         InterviewSessionMapper interviewSessionMapper, ArticleService articleService,
+                         me.asikeida.ashore.service.interact.service.CountService countService) {
         this.footMapper = footMapper;
         this.articleMapper = articleMapper;
         this.interviewSessionMapper = interviewSessionMapper;
         this.articleService = articleService;
+        this.countService = countService;
     }
 
     @Override
@@ -103,6 +108,36 @@ public class MeServiceImpl implements MeService {
                         s.getStatus(),
                         s.getCreateTime() == null ? null : s.getCreateTime().toString(),
                         s.getUpdateTime() == null ? null : s.getUpdateTime().toString()))
+                .toList();
+    }
+
+    @Override
+    public List<MeArticleItemVo> myArticles(Long userId) {
+        // 作者视角：不过滤状态——REVIEW/OFFLINE 也要能看到（这正是审核进度的意义）；
+        // 软删除的不展示（作者视角里"删除"即不存在）
+        List<ArticleDO> articles = articleMapper.selectList(new LambdaQueryWrapper<ArticleDO>()
+                .eq(ArticleDO::getAuthorId, userId)
+                .eq(ArticleDO::getDeleted, 0)
+                .orderByDesc(ArticleDO::getCreateTime)
+                .last("LIMIT " + FOOT_LIMIT));
+        if (articles.isEmpty()) {
+            return List.of();
+        }
+        // 标签批量组装（复用既有防 N+1 路径）+ 计数批量取（CountService 逐篇走 Redis hash，
+        // 面经数量有上限 50，可接受；不做跨 hash 批量——复杂度不划算）
+        List<Long> ids = articles.stream().map(ArticleDO::getId).toList();
+        Map<Long, List<String>> tagsByArticle = articleService.tagsFor(ids);
+        return articles.stream()
+                .map(a -> {
+                    var counts = countService.counts(a.getId());
+                    return new MeArticleItemVo(
+                            String.valueOf(a.getId()),
+                            a.getTitle(),
+                            tagsByArticle.getOrDefault(a.getId(), List.of()),
+                            a.getStatus(),
+                            a.getCreateTime() == null ? null : a.getCreateTime().toString(),
+                            counts.read(), counts.praise(), counts.collect(), counts.comment());
+                })
                 .toList();
     }
 }
