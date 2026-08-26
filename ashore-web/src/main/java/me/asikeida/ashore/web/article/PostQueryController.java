@@ -3,6 +3,7 @@ package me.asikeida.ashore.web.article;
 import me.asikeida.ashore.api.context.LoginUser;
 import me.asikeida.ashore.api.context.ReqContext;
 import me.asikeida.ashore.api.resp.ResVo;
+import me.asikeida.ashore.api.vo.post.HotPostItemVo;
 import me.asikeida.ashore.api.vo.post.PostPageVo;
 import me.asikeida.ashore.api.vo.post.PostVersionVo;
 import me.asikeida.ashore.core.permission.Permission;
@@ -38,6 +39,13 @@ public class PostQueryController {
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) String tag) {
         return ResVo.ok(articleService.list(cursor, limit, tag));
+    }
+
+    /** 热榜：公开；加权热度排序（数据源 5 分钟回写的聚合表，分钟级延迟） */
+    @Operation(summary = "热榜", description = "公开；ONLINE 面经按互动热度加权排序（浏览+点赞×4+收藏×6+评论×8）")
+    @GetMapping("/hot")
+    public ResVo<List<HotPostItemVo>> hot(@RequestParam(required = false) Integer limit) {
+        return ResVo.ok(articleService.hot(limit));
     }
 
     /** 正文版本历史（作者/管理员，新版本在前） */

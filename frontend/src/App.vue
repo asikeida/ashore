@@ -1,14 +1,30 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth, refreshAuth, logout } from './stores/auth'
+import { fetchUnreadCount } from './api/community'
 import { ElConfigProvider } from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import { ChatDotRound, Document, EditPen, SwitchButton, User, UserFilled } from '@element-plus/icons-vue'
+import { Bell, ChatDotRound, Document, EditPen, SwitchButton, User, UserFilled } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const unread = ref(0)
 
-onMounted(refreshAuth)
+async function pollUnread() {
+  if (!auth.loggedIn) return
+  try {
+    unread.value = await fetchUnreadCount()
+  } catch {
+    // 静默：徽标失败不影响主功能
+  }
+}
+
+onMounted(async () => {
+  await refreshAuth()
+  await pollUnread()
+  // 60s 轮询未读数（轻量端点）；页面隐藏时浏览器会自动节流
+  setInterval(pollUnread, 60_000)
+})
 
 async function handleLogout() {
   await logout()
@@ -28,6 +44,11 @@ async function handleLogout() {
           </RouterLink>
           <nav class="nav-actions">
             <template v-if="auth.loggedIn">
+              <el-badge :value="unread" :hidden="unread === 0" :max="99">
+                <RouterLink to="/notices" class="bell-link">
+                  <el-button :icon="Bell" circle text />
+                </RouterLink>
+              </el-badge>
               <RouterLink to="/write">
                 <el-button type="primary" :icon="EditPen" plain size="default">写面经</el-button>
               </RouterLink>
@@ -67,6 +88,11 @@ async function handleLogout() {
 </template>
 
 <style scoped>
+.bell-link {
+  text-decoration: none;
+  margin-right: 6px;
+}
+
 .user-chip {
   display: inline-flex;
   align-items: center;

@@ -16,6 +16,7 @@ import me.asikeida.ashore.api.enums.FootTypeEnum;
 import me.asikeida.ashore.api.exception.ExceptionUtil;
 import me.asikeida.ashore.api.resp.StatusEnum;
 import me.asikeida.ashore.api.vo.post.EditPostReq;
+import me.asikeida.ashore.api.vo.post.HotPostItemVo;
 import me.asikeida.ashore.api.vo.post.PostDetailVo;
 import me.asikeida.ashore.api.vo.post.AdminPostItemVo;
 import me.asikeida.ashore.api.vo.post.PostItemVo;
@@ -65,6 +66,8 @@ public class ArticleServiceImpl implements ArticleService {
 
     private final UserFootMapper footMapper;
 
+    private final me.asikeida.ashore.service.interact.repository.mapper.ArticleCountMapper countMapper;
+
     private final ApplicationEventPublisher eventPublisher;
 
     private final me.asikeida.ashore.service.interact.service.RankService rankService;
@@ -74,6 +77,7 @@ public class ArticleServiceImpl implements ArticleService {
     public ArticleServiceImpl(ArticleMapper articleMapper, ArticleDetailMapper detailMapper,
                               TagMapper tagMapper, ArticleTagMapper articleTagMapper, UserMapper userMapper,
                               CountService countService, UserFootMapper footMapper,
+                              me.asikeida.ashore.service.interact.repository.mapper.ArticleCountMapper countMapper,
                               ApplicationEventPublisher eventPublisher,
                               me.asikeida.ashore.service.interact.service.RankService rankService,
                               EsSearchService esSearchService) {
@@ -84,6 +88,7 @@ public class ArticleServiceImpl implements ArticleService {
         this.userMapper = userMapper;
         this.countService = countService;
         this.footMapper = footMapper;
+        this.countMapper = countMapper;
         this.eventPublisher = eventPublisher;
         this.rankService = rankService;
         this.esSearchService = esSearchService;
@@ -427,6 +432,48 @@ public class ArticleServiceImpl implements ArticleService {
                         nicknameByAuthor.getOrDefault(a.getAuthorId(), "岸友"),
                         a.getCreateTime() == null ? null : a.getCreateTime().toString(),
                         a.getToppingStat() != null && a.getToppingStat() == 1), a.getStatus()))
+                .toList();
+    }
+
+    @Override
+    public List<HotPostItemVo> hot(Integer limit) {
+        // 热榜数据源选 article_count 聚合表（5 分钟批量回写）而非 Redis 实时 hash：
+        // 榜单天然容忍分钟级延迟，换得一条加权 ORDER BY 的 SQL 完成全部逻辑
+        int safeLimit = limit == null ? 10 : Math.min(Math.max(limit, 1), 50);
+        List<me.asikeida.ashore.service.interact.repository.entity.ArticleCountDO> counts =
+                countMapper.selectList(new LambdaQueryWrapper<me.asikeida.ashore.service.interact.repository.entity.ArticleCountDO>()
+                        .gt(me.asikeida.ashore.service.interact.repository.entity.ArticleCountDO::getReadCount, 0)
+                        .orderByDesc(me.asikeida.ashore.service.interact.repository.entity.ArticleCountDO::getReadCount)
+                        .last("LIMIT 200"));
+        if (counts.isEmpty()) {
+            return List.of();
+        }
+        List<Long> ids = counts.stream()
+                .map(me.asikeida.ashore.service.interact.repository.entity.ArticleCountDO::getArticleId).toList();
+        // 只保留 ONLINE 未删除的（计数表可能残留已下线文章的行）
+        Map<Long, ArticleDO> articleById = articleMapper.selectList(new LambdaQueryWrapper<ArticleDO>()
+                        .in(ArticleDO::getId, ids)
+                        .eq(ArticleDO::getStatus, ArticleStatus.ONLINE.name())
+                        .eq(ArticleDO::getDeleted, 0))
+                .stream().collect(Collectors.toMap(ArticleDO::getId, a -> a, (a, b) -> a));
+        Map<Long, String> nicknameByAuthor = nicknamesByAuthor(
+                articleById.values().stream().map(ArticleDO::getAuthorId).distinct().toList());
+
+        return counts.stream()
+                .filter(c -> articleById.containsKey(c.getArticleId()))
+                .map(c -> {
+                    ArticleDO a = articleById.get(c.getArticleId());
+                    long read = c.getReadCount() == null ? 0 : c.getReadCount();
+                    long praise = c.getPraiseCount() == null ? 0 : c.getPraiseCount();
+                    long collect = c.getCollectCount() == null ? 0 : c.getCollectCount();
+                    long comment = c.getCommentCount() == null ? 0 : c.getCommentCount();
+                    double score = read + praise * 4 + collect * 6 + comment * 8;
+                    return new HotPostItemVo(String.valueOf(a.getId()), a.getTitle(),
+                            nicknameByAuthor.getOrDefault(a.getAuthorId(), "岸友"),
+                            read, praise, comment, score);
+                })
+                .sorted((x, y) -> Double.compare(y.hotScore(), x.hotScore()))
+                .limit(safeLimit)
                 .toList();
     }
 

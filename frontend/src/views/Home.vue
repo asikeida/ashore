@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { Search } from '@element-plus/icons-vue'
+import { Search, TrendCharts } from '@element-plus/icons-vue'
 import {
   fetchPosts,
   searchPosts,
   type PostItem,
   type SearchItem,
 } from '../api/post'
+import {
+  fetchDailyRank,
+  fetchHotPosts,
+  type HotPostItem,
+  type RankItem,
+} from '../api/community'
 
 const items = ref<PostItem[]>([])
 const cursor = ref<string | null>(null)
@@ -16,6 +22,24 @@ const finished = ref(false)
 const keyword = ref('')
 const searchResults = ref<SearchItem[] | null>(null)
 const searchLoading = ref(false)
+
+// ── 侧栏：热榜 + 活跃榜 ─────────────────────────────────────
+const hotPosts = ref<HotPostItem[]>([])
+const dailyRank = ref<RankItem[]>([])
+const sidebarTab = ref<'hot' | 'rank'>('hot')
+
+async function loadSidebar() {
+  try {
+    hotPosts.value = await fetchHotPosts(8)
+  } catch {
+    // 侧栏数据失败静默，不打断主列表
+  }
+  try {
+    dailyRank.value = await fetchDailyRank(8)
+  } catch {
+    // 同上
+  }
+}
 
 async function loadMore() {
   if (loading.value || finished.value) return
@@ -49,11 +73,14 @@ function formatTime(time: string): string {
   return time.replace('T', ' ').slice(0, 16)
 }
 
-onMounted(loadMore)
+onMounted(() => {
+  loadMore()
+  loadSidebar()
+})
 </script>
 
 <template>
-  <div class="container">
+  <div class="container-wide home-layout">
     <el-card shadow="never" class="search-panel">
       <el-input
         v-model="keyword"
@@ -126,10 +153,131 @@ onMounted(loadMore)
         </el-button>
       </div>
     </template>
+
+    <!-- 侧栏：热榜 + 活跃榜 -->
+    <aside class="sidebar">
+      <div class="panel side-card">
+        <el-tabs v-model="sidebarTab">
+          <el-tab-pane name="hot">
+            <template #label>
+              <span class="side-tab"><el-icon><TrendCharts /></el-icon> 热榜</span>
+            </template>
+            <el-empty
+              v-if="hotPosts.length === 0"
+              :image-size="56"
+              description="暂无热度数据"
+            />
+            <ol v-else class="rank-list">
+              <li v-for="(h, i) in hotPosts" :key="h.id" class="rank-row">
+                <span class="rank-no" :class="{ top3: i < 3 }">{{ i + 1 }}</span>
+                <RouterLink :to="`/posts/${h.id}`" class="rank-title">{{ h.title }}</RouterLink>
+                <span class="rank-meta">{{ h.hotScore.toFixed(0) }} 热度</span>
+              </li>
+            </ol>
+          </el-tab-pane>
+          <el-tab-pane name="rank">
+            <template #label>
+              <span class="side-tab">🔥 活跃榜</span>
+            </template>
+            <el-empty
+              v-if="dailyRank.length === 0"
+              :image-size="56"
+              description="今日还没有活跃用户"
+            />
+            <ol v-else class="rank-list">
+              <li v-for="r in dailyRank" :key="r.userId" class="rank-row">
+                <span class="rank-no" :class="{ top3: r.rank <= 3 }">{{ r.rank }}</span>
+                <span class="rank-title">{{ r.nickname }}</span>
+                <span class="rank-meta">{{ r.score }} 分</span>
+              </li>
+            </ol>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
+    </aside>
   </div>
 </template>
 
 <style scoped>
+.home-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .home-layout {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    order: 2;
+  }
+}
+
+.side-card {
+  position: sticky;
+  top: 76px;
+}
+
+.side-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rank-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 2px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.rank-row:last-child {
+  border-bottom: none;
+}
+
+.rank-no {
+  width: 22px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.rank-no.top3 {
+  color: var(--el-color-danger);
+}
+
+.rank-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13.5px;
+}
+
+a.rank-title:hover {
+  color: var(--accent);
+}
+
+.rank-meta {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
 .search-panel {
   border-radius: 14px;
   border: 1px solid var(--border);
