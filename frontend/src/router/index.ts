@@ -8,6 +8,7 @@ const PostDetail = () => import('../views/PostDetail.vue')
 const PostEdit = () => import('../views/PostEdit.vue')
 const Interview = () => import('../views/Interview.vue')
 const Admin = () => import('../views/Admin.vue')
+const Notices = () => import('../views/Notices.vue')
 const Profile = () => import('../views/Profile.vue')
 const InterviewHistory = () => import('../views/InterviewHistory.vue')
 
@@ -25,6 +26,7 @@ export const router = createRouter({
     { path: '/profile', component: Profile, meta: { requiresAuth: true } },
     { path: '/profile/interview/:sessionId', component: InterviewHistory, meta: { requiresAuth: true }, props: true },
     { path: '/admin', component: Admin, meta: { requiresAuth: true, requiresAdmin: true } },
+    { path: '/notices', component: Notices, meta: { requiresAuth: true } },
   ],
 })
 

@@ -4,6 +4,7 @@ import java.util.List;
 import me.asikeida.ashore.api.context.LoginUser;
 import me.asikeida.ashore.api.vo.post.AdminPostItemVo;
 import me.asikeida.ashore.api.vo.post.EditPostReq;
+import me.asikeida.ashore.api.vo.post.HotPostItemVo;
 import me.asikeida.ashore.api.vo.post.PostDetailVo;
 import me.asikeida.ashore.api.vo.post.PostItemVo;
 import me.asikeida.ashore.api.vo.post.PostPageVo;
@@ -55,6 +56,12 @@ public interface ArticleService {
 
     /** 管理台文章列表：按状态筛选（含 REVIEW），软删除除外（仅 ADMIN 调用）；每项含审核状态 */
     List<AdminPostItemVo> adminList(String status, Integer limit);
+
+    /**
+     * 热榜：ONLINE 面经按互动热度加权排序（read*1+praise*4+collect*6+comment*8）。
+     * 数据源 article_count 聚合表（5 分钟批量回写），非实时；公开无需登录。
+     */
+    List<HotPostItemVo> hot(Integer limit);
 
     /**
      * 置顶/取消置顶（仅管理员）：写 topping_stat（列表排序第一键）。
