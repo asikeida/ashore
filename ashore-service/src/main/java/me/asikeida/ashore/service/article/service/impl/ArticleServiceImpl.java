@@ -74,13 +74,16 @@ public class ArticleServiceImpl implements ArticleService {
 
     private final EsSearchService esSearchService;
 
+    private final org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
+
     public ArticleServiceImpl(ArticleMapper articleMapper, ArticleDetailMapper detailMapper,
                               TagMapper tagMapper, ArticleTagMapper articleTagMapper, UserMapper userMapper,
                               CountService countService, UserFootMapper footMapper,
                               me.asikeida.ashore.service.interact.repository.mapper.ArticleCountMapper countMapper,
                               ApplicationEventPublisher eventPublisher,
                               me.asikeida.ashore.service.interact.service.RankService rankService,
-                              EsSearchService esSearchService) {
+                              EsSearchService esSearchService,
+                              org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate) {
         this.articleMapper = articleMapper;
         this.detailMapper = detailMapper;
         this.tagMapper = tagMapper;
@@ -92,6 +95,7 @@ public class ArticleServiceImpl implements ArticleService {
         this.eventPublisher = eventPublisher;
         this.rankService = rankService;
         this.esSearchService = esSearchService;
+        this.stringRedisTemplate = stringRedisTemplate;
     }
 
     @Override
@@ -208,17 +212,28 @@ public class ArticleServiceImpl implements ArticleService {
                 body == null ? "" : body, status);
     }
 
-    /** 详情阅读计数与排行：仅登录用户计（防匿名刷数），旁路失败不反压 */
+    /**
+     * 详情阅读计数与排行：仅登录用户计（防匿名刷数）；24h 去重——同一用户对同一篇
+     * 只计 1 次（Redis SETNX 原子判重，TTL 即去重窗口）。排行 READ 分随首次阅读
+     * 记一次，重复打开不再加分。旁路失败不反压。
+     */
     private void incrReadQuietly(Long articleId, LoginUser operator) {
         if (operator == null) {
             return;
         }
         try {
+            // setIfAbsent = SETNX：并发下只有一个请求拿到 true，天然防重复计数
+            Boolean first = stringRedisTemplate.opsForValue().setIfAbsent(
+                    "ashore:read:" + articleId + ":" + operator.userId(),
+                    "1", java.time.Duration.ofHours(24));
+            if (!Boolean.TRUE.equals(first)) {
+                return;   // 24h 内已计数过
+            }
             countService.incrRead(articleId, 1);
             rankService.record(operator.userId(),
                     me.asikeida.ashore.api.enums.RankActionEnum.READ, articleId);
         } catch (Exception e) {
-            // 阅读计数是旁路
+            // 阅读计数是旁路：判重键写失败也跳过计数（宁少勿脏）
         }
     }
 

@@ -82,4 +82,33 @@ class AuthInterceptorTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result").value("admin-ok"));
     }
+
+    // ── 公开端点身份解析修复（2026-11-09 事故：登录用户看详情 operator=null，阅读计数恒 0）──
+
+    @Test
+    void publicEndpointResolvesIdentityForLoggedInUser() throws Exception {
+        when(sessionService.validate("user-token")).thenReturn(new LoginUser(2L, "u2", "USER"));
+
+        // 公开端点 + 有效会话 → ReqContext 应有身份（阅读计数依赖此行为）
+        mvc.perform(get("/api/test/whoami").cookie(new Cookie(SessionService.COOKIE_NAME, "user-token")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result").value("USER:u2"));
+    }
+
+    @Test
+    void publicEndpointStaysAnonymousWithoutCookie() throws Exception {
+        mvc.perform(get("/api/test/whoami"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result").value("anonymous"));
+    }
+
+    @Test
+    void publicEndpointStaysAnonymousWithInvalidToken() throws Exception {
+        // 无效 token：身份解析失败但不应拦截（公开端点），也不应写入身份
+        when(sessionService.validate("stale-token")).thenReturn(null);
+
+        mvc.perform(get("/api/test/whoami").cookie(new Cookie(SessionService.COOKIE_NAME, "stale-token")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result").value("anonymous"));
+    }
 }

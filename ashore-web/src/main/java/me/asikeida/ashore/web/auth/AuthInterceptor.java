@@ -48,18 +48,24 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (permission == null) {
             permission = handlerMethod.getBeanType().getAnnotation(Permission.class);
         }
-        if (permission == null) {
-            return true;
+
+        // 无条件解析身份：公开端点（无 @Permission）的业务逻辑同样需要知道"当前是谁"——
+        // 阅读计数（operator 为 null 则不计）、详情可见性（ADMIN 看非上线文 404 事故的根因）。
+        // 有 Cookie 且有效才写入；未登录保持 null，由业务自行决定语义
+        LoginUser user = resolveLoginUser(request);
+        if (user != null) {
+            ReqContext.setLoginUser(user);
         }
 
-        LoginUser user = resolveLoginUser(request);
+        if (permission == null) {
+            return true;   // 公开端点：身份已尽力解析，放行
+        }
         if (user == null) {
             return reject(response, HttpStatus.UNAUTHORIZED.value(), StatusEnum.UNAUTHORIZED);
         }
         if (!permission.value().allowed(user.role())) {
             return reject(response, HttpStatus.FORBIDDEN.value(), StatusEnum.FORBIDDEN);
         }
-        ReqContext.setLoginUser(user);
         return true;
     }
 
