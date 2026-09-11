@@ -38,6 +38,9 @@ public class UserDO {
 
     private String nickname;
 
+    /** 头像 URL（/images/...）；NULL=未设置 */
+    private String avatar;
+
     /** 角色：USER / ADMIN */
     private String role;
 

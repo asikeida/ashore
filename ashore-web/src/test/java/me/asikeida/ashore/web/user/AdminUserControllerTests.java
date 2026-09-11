@@ -52,7 +52,7 @@ class AdminUserControllerTests {
     @MockitoBean
     private UserAdminService userAdminService;
 
-    private static final UserVo SAMPLE = new UserVo("998", "target", "目标用户", "USER");
+    private static final UserVo SAMPLE = new UserVo("998", "target", "目标用户", "USER", null);
 
     @Test
     void listForbiddenForUserRole() throws Exception {

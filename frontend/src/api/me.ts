@@ -49,3 +49,27 @@ export interface MeArticleItem {
 export async function fetchMyArticles(): Promise<MeArticleItem[]> {
   return apiGet<MeArticleItem[]>('/api/v1/me/articles')
 }
+
+/** 上传头像（png/jpg/webp/gif ≤1MB），返回头像 URL */
+export async function uploadAvatar(file: File): Promise<string> {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await fetch('/api/v1/me/avatar', { method: 'POST', body: form })
+  const body = await response.json()
+  if (!body.status || body.status.code !== 0) {
+    throw new Error(body.status?.msg ?? '上传失败')
+  }
+  return body.result as string
+}
+
+/** 上传文章配图（≤5MB），返回 /images/ URL */
+export async function uploadPostImage(file: File): Promise<string> {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await fetch('/api/v1/posts/images', { method: 'POST', body: form })
+  const body = await response.json()
+  if (!body.status || body.status.code !== 0) {
+    throw new Error(body.status?.msg ?? '上传失败')
+  }
+  return body.result as string
+}

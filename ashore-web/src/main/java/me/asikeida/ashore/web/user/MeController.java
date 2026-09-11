@@ -12,7 +12,9 @@ import me.asikeida.ashore.api.vo.profile.MeInterviewItemVo;
 import me.asikeida.ashore.core.permission.Permission;
 import me.asikeida.ashore.service.profile.service.MeService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -60,5 +62,20 @@ public class MeController {
     public ResVo<List<MeArticleItemVo>> myArticles() {
         LoginUser user = ReqContext.loginUser();
         return ResVo.ok(meService.myArticles(user.userId()));
+    }
+
+    @Operation(summary = "我的头像 URL", description = "未设置时返回 null（前端以昵称首字占位）")
+    @Permission
+    @GetMapping("/avatar")
+    public ResVo<String> myAvatar() {
+        return ResVo.ok(meService.avatarOf(ReqContext.loginUser().userId()));
+    }
+
+    @Operation(summary = "上传头像", description = "multipart 图片（png/jpg/webp/gif，≤1MB）；返回头像 URL 并写入个人资料")
+    @Permission
+    @PostMapping(value = "/avatar", consumes = "multipart/form-data")
+    public ResVo<String> uploadAvatar(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        LoginUser user = ReqContext.loginUser();
+        return ResVo.ok(meService.updateAvatar(user.userId(), file));
     }
 }

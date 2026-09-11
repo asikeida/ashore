@@ -4,12 +4,49 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ApiError } from '../api/client'
 import { publishPost } from '../api/post'
+import { uploadPostImage } from '../api/me'
 
 const title = ref('')
 const content = ref('')
 const tagList = ref<string[]>([])
 const error = ref('')
 const submitting = ref(false)
+const contentRef = ref<InstanceType<typeof import('element-plus')['ElInput']>>()
+const uploadingImage = ref(false)
+
+/** 在光标处插入上传图片的 Markdown 语法 */
+async function onPickImage(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.error('配图不能超过 5MB')
+    input.value = ''
+    return
+  }
+  uploadingImage.value = true
+  try {
+    const url = await uploadPostImage(file)
+    const md = `![](${url})`
+    const el = contentRef.value?.$el?.querySelector('textarea') as HTMLTextAreaElement | undefined
+    if (el && el.selectionStart != null) {
+      const start = el.selectionStart
+      content.value = content.value.slice(0, start) + md + content.value.slice(el.selectionEnd)
+      requestAnimationFrame(() => {
+        el.focus()
+        el.selectionStart = el.selectionEnd = start + md.length
+      })
+    } else {
+      content.value += md
+    }
+    ElMessage.success('图片已上传，已插入 Markdown')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '上传失败')
+  } finally {
+    uploadingImage.value = false
+    input.value = ''
+  }
+}
 const router = useRouter()
 
 const CONTENT_HINT =
@@ -72,7 +109,12 @@ async function submit() {
         </el-form-item>
 
         <el-form-item label="正文（Markdown）">
+          <label class="img-upload" style="display: inline-block; margin-bottom: 6px; font-size: 13px; color: var(--el-color-primary); cursor: pointer">
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden :disabled="uploadingImage" @change="onPickImage" />
+            {{ uploadingImage ? '上传中…' : '🖼 插入图片（≤5MB）' }}
+          </label>
           <el-input
+            ref="contentRef"
             v-model="content"
             type="textarea"
             :autosize="{ minRows: 14, maxRows: 30 }"

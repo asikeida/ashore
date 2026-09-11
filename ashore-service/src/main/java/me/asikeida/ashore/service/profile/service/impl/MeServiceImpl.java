@@ -18,6 +18,7 @@ import me.asikeida.ashore.service.article.service.ArticleService;
 import me.asikeida.ashore.service.interact.repository.entity.UserFootDO;
 import me.asikeida.ashore.service.interact.repository.mapper.UserFootMapper;
 import me.asikeida.ashore.service.profile.service.MeService;
+import me.asikeida.ashore.service.user.repository.entity.UserDO;
 import org.springframework.stereotype.Service;
 
 /**
@@ -40,14 +41,22 @@ public class MeServiceImpl implements MeService {
 
     private final me.asikeida.ashore.service.interact.service.CountService countService;
 
+    private final me.asikeida.ashore.service.image.service.ImageUploader imageUploader;
+
+    private final me.asikeida.ashore.service.user.repository.mapper.UserMapper userMapper;
+
     public MeServiceImpl(UserFootMapper footMapper, ArticleMapper articleMapper,
                          InterviewSessionMapper interviewSessionMapper, ArticleService articleService,
-                         me.asikeida.ashore.service.interact.service.CountService countService) {
+                         me.asikeida.ashore.service.interact.service.CountService countService,
+                         me.asikeida.ashore.service.image.service.ImageUploader imageUploader,
+                         me.asikeida.ashore.service.user.repository.mapper.UserMapper userMapper) {
         this.footMapper = footMapper;
         this.articleMapper = articleMapper;
         this.interviewSessionMapper = interviewSessionMapper;
         this.articleService = articleService;
         this.countService = countService;
+        this.imageUploader = imageUploader;
+        this.userMapper = userMapper;
     }
 
     @Override
@@ -139,5 +148,72 @@ public class MeServiceImpl implements MeService {
                             counts.read(), counts.praise(), counts.collect(), counts.comment());
                 })
                 .toList();
+    }
+
+    @Override
+    public String avatarOf(Long userId) {
+        UserDO user = userMapper.selectById(userId);
+        return user == null ? null : user.getAvatar();
+    }
+
+    @Override
+    public String updateAvatar(Long userId, org.springframework.web.multipart.MultipartFile file) {
+        byte[] data;
+        try {
+            data = file.getBytes();
+        } catch (java.io.IOException e) {
+            throw me.asikeida.ashore.api.exception.ExceptionUtil.of(
+                    me.asikeida.ashore.api.resp.StatusEnum.UPLOAD_INVALID);
+        }
+        String url = uploadImage(data, file.getOriginalFilename(), 1024 * 1024, "avatar");
+        UserDO patch = new UserDO();
+        patch.setId(userId);
+        patch.setAvatar(url);
+        userMapper.updateById(patch);
+        return url;
+    }
+
+    @Override
+    public String uploadPostImage(Long userId, org.springframework.web.multipart.MultipartFile file) {
+        byte[] data;
+        try {
+            data = file.getBytes();
+        } catch (java.io.IOException e) {
+            throw me.asikeida.ashore.api.exception.ExceptionUtil.of(
+                    me.asikeida.ashore.api.resp.StatusEnum.UPLOAD_INVALID);
+        }
+        return uploadImage(data, file.getOriginalFilename(), 5 * 1024 * 1024, "post");
+    }
+
+    /** 魔数校验 + 大小限制 + 上传。魔数判定防止改扩展名伪装（jpg→exe 之类） */
+    private String uploadImage(byte[] data, String filename, int maxBytes, String domain) {
+        if (data == null || data.length == 0 || data.length > maxBytes) {
+            throw me.asikeida.ashore.api.exception.ExceptionUtil.of(
+                    me.asikeida.ashore.api.resp.StatusEnum.UPLOAD_INVALID);
+        }
+        String ext = detectExt(data);
+        if (ext == null) {
+            throw me.asikeida.ashore.api.exception.ExceptionUtil.of(
+                    me.asikeida.ashore.api.resp.StatusEnum.UPLOAD_INVALID);
+        }
+        return imageUploader.upload(data, ext, domain);
+    }
+
+    /** 按文件头魔数识别图片类型；不认识的一律拒绝 */
+    private String detectExt(byte[] d) {
+        if (d.length >= 8 && (d[0] & 0xFF) == 0x89 && d[1] == 'P' && d[2] == 'N' && d[3] == 'G') {
+            return "png";
+        }
+        if (d.length >= 3 && (d[0] & 0xFF) == 0xFF && d[1] == 0xD8 && d[2] == 0xFF) {
+            return "jpg";
+        }
+        if (d.length >= 12 && d[0] == 'R' && d[1] == 'I' && d[2] == 'F' && d[3] == 'F'
+                && d[8] == 'W' && d[9] == 'E' && d[10] == 'B' && d[11] == 'P') {
+            return "webp";
+        }
+        if (d.length >= 3 && d[0] == 'G' && d[1] == 'I' && d[2] == 'F') {
+            return "gif";
+        }
+        return null;
     }
 }

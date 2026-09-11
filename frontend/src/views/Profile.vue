@@ -2,11 +2,13 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ChatDotRound, Collection, Pointer, View } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import {
   fetchMyArticles,
   fetchMyCollects,
   fetchMyInterviews,
   fetchMyPraises,
+  uploadAvatar,
   type MeArticleItem,
   type MeFootItem,
   type MeInterviewItem,
@@ -20,6 +22,26 @@ const praises = ref<MeFootItem[]>([])
 const interviews = ref<MeInterviewItem[]>([])
 const loading = ref(false)
 const router = useRouter()
+const avatarUrl = ref<string | null>(null)
+
+async function onAvatarChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  if (file.size > 1024 * 1024) {
+    ElMessage.error('头像不能超过 1MB')
+    input.value = ''
+    return
+  }
+  try {
+    avatarUrl.value = await uploadAvatar(file)
+    ElMessage.success('头像已更新')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '上传失败')
+  } finally {
+    input.value = ''
+  }
+}
 
 const STATUS_META: Record<string, { label: string; type: 'warning' | 'success' | 'info' }> = {
   REVIEW: { label: '审核中', type: 'warning' },
@@ -55,10 +77,16 @@ onMounted(loadAll)
   <div class="container">
     <div class="panel">
       <div class="profile-head">
-        <el-avatar :size="44" class="profile-avatar">{{ auth.account?.[0] ?? '?' }}</el-avatar>
+        <el-badge :is-dot="false" class="avatar-wrap">
+          <el-avatar :size="44" :src="avatarUrl || undefined" class="profile-avatar">{{ avatarUrl ? '' : (auth.account?.[0] ?? '?') }}</el-avatar>
+        </el-badge>
         <div>
           <h2 style="margin: 0">{{ auth.account }}</h2>
           <p class="muted" style="margin: 2px 0 0">我的面经、收藏点赞复习角、AI 面试记录都在这里</p>
+          <label class="avatar-upload">
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="onAvatarChange" />
+            更换头像（png/jpg/webp/gif ≤1MB）
+          </label>
         </div>
       </div>
 
@@ -196,6 +224,18 @@ onMounted(loadAll)
   color: var(--el-color-primary-dark-2);
   font-weight: 700;
   font-size: 20px;
+}
+
+.avatar-upload {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.avatar-upload:hover {
+  text-decoration: underline;
 }
 
 .foot-card .item-title {

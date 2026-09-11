@@ -6,3 +6,10 @@
 spring:
   config:
     import: optional:file:./.env[.properties],optional:file:../.env[.properties]
+
+# MinIO 客户端构造参数（测试上下文必需；构造不联网，真实上传路径由远端 E2E 覆盖）
+minio:
+  endpoint: http://127.0.0.1:9000
+  access-key: test
+  secret-key: test
+  public-base-url: /images/

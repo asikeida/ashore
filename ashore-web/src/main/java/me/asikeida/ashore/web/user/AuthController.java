@@ -41,11 +41,15 @@ public class AuthController {
 
     private final SessionCookieWriter cookieWriter;
 
+    private final me.asikeida.ashore.service.profile.service.MeService meService;
+
     public AuthController(AuthService authService, SessionService sessionService,
-                          SessionCookieWriter cookieWriter) {
+                          SessionCookieWriter cookieWriter,
+                          me.asikeida.ashore.service.profile.service.MeService meService) {
         this.authService = authService;
         this.sessionService = sessionService;
         this.cookieWriter = cookieWriter;
+        this.meService = meService;
     }
 
     @Operation(summary = "注册", description = "账号唯一校验 + BCrypt 密码哈希；成功即签发会话 Cookie")
@@ -70,8 +74,9 @@ public class AuthController {
     @GetMapping("/me")
     public ResVo<MeVo> me() {
         LoginUser user = ReqContext.loginUser();
-        // 边界视图：id 字符串化（雪花 ID 超 JS 2^53），不直接暴露内部 LoginUser
-        return ResVo.ok(new MeVo(String.valueOf(user.userId()), user.account(), user.role()));
+        // 边界视图：id 字符串化（雪花 ID 超 JS 2^53）；avatar 查库（改头像后即时生效，会话快照不含）
+        return ResVo.ok(new MeVo(String.valueOf(user.userId()), user.account(), user.role(),
+                meService.avatarOf(user.userId())));
     }
 
     /** 登出：吊销 Redis 会话并清除 Cookie；未登录调用也返回成功（幂等） */
