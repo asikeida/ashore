@@ -87,5 +87,11 @@
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- 对象存储：MinIO S3 兼容客户端（头像/文章配图上传；服务端为同机 systemd 部署的 MinIO） -->
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>8.5.17</version>
+        </dependency>
     </dependencies>
 </project>

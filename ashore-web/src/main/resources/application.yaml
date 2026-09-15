@@ -42,6 +42,14 @@ ashore:
         base-url: https://open.bigmodel.cn/api/paas/v4
         api-key: ${AI_ZHIPU_API_KEY:}
         model: glm-4-flash
+minio:
+  # S3 兼容对象存储（同机 systemd 部署，secrets 经 ashore.env 注入）；
+  # 公网读取走 Nginx /images/ 反代静态直出，应用只负责写入
+  endpoint: ${MINIO_ENDPOINT:http://127.0.0.1:9000}
+  access-key: ${MINIO_ROOT_USER:}
+  secret-key: ${MINIO_ROOT_PASSWORD:}
+  public-base-url: /images/
+
 logging:
   pattern:
     # [%X{requestId}] 为 MDC 插槽：RequestIDFilter 写入后，本轮所有日志行自动携带同一请求标识

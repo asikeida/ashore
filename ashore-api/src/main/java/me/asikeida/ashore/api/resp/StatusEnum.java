@@ -45,6 +45,9 @@ public enum StatusEnum implements Status {
     /** 未预期异常的对外统一文案 */
     ERROR(500000, "服务异常，请稍后重试"),
 
+    /** 上传内容不合法（类型/大小超限） */
+    UPLOAD_INVALID(400004, "图片格式仅支持 png/jpg/webp/gif，且不超过指定大小"),
+
     /** 功能存在但服务端未启用（如 OAuth 凭证未配置） */
     SERVICE_DISABLED(503001, "该登录方式暂未启用");
 

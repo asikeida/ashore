@@ -23,4 +23,17 @@ public interface MeService {
 
     /** 我发布的面经（含审核状态与四项计数，创建时间倒序，上限 50）——作者的作品全景 */
     List<MeArticleItemVo> myArticles(Long userId);
+
+    /** 我的头像 URL；未设置返回 null */
+    String avatarOf(Long userId);
+
+    /**
+     * 上传头像：校验（类型/大小）→ ImageUploader 上传 → user.avatar 写 URL。
+     *
+     * @return 头像公网 URL
+     */
+    String updateAvatar(Long userId, org.springframework.web.multipart.MultipartFile file);
+
+    /** 上传文章配图：校验（类型/≤5MB）→ 上传；不落库（URL 由编辑器写入正文 Markdown） */
+    String uploadPostImage(Long userId, org.springframework.web.multipart.MultipartFile file);
 }

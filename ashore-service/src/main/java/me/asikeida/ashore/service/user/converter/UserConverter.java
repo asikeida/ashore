@@ -16,7 +16,8 @@ public final class UserConverter {
                 String.valueOf(user.getId()),
                 user.getAccount(),
                 user.getNickname(),
-                user.getRole()
+                user.getRole(),
+                user.getAvatar()
         );
     }
 }

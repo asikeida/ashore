@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -36,9 +37,22 @@ public class PostController {
 
     private final FootService footService;
 
-    public PostController(ArticleService articleService, FootService footService) {
+    private final me.asikeida.ashore.service.profile.service.MeService meService;
+
+    public PostController(ArticleService articleService, FootService footService,
+                          me.asikeida.ashore.service.profile.service.MeService meService) {
         this.articleService = articleService;
         this.footService = footService;
+        this.meService = meService;
+    }
+
+    /** 文章配图上传：登录即可（5MB 上限）；返回 URL 由编辑器插入 Markdown 图片语法 */
+    @Operation(summary = "上传文章配图", description = "需登录；png/jpg/webp/gif ≤5MB；返回 /images/ URL，编辑器以 ![](url) 插入")
+    @Permission
+    @PostMapping(value = "/images", consumes = "multipart/form-data")
+    public ResVo<String> uploadImage(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        LoginUser user = ReqContext.loginUser();
+        return ResVo.ok(meService.uploadPostImage(user.userId(), file));
     }
 
     @Operation(summary = "发布面经", description = "需登录；所有人发文进 REVIEW 审核；标签不存在自动创建")
