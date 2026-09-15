@@ -165,7 +165,7 @@ public class MeServiceImpl implements MeService {
             throw me.asikeida.ashore.api.exception.ExceptionUtil.of(
                     me.asikeida.ashore.api.resp.StatusEnum.UPLOAD_INVALID);
         }
-        String url = uploadImage(data, file.getOriginalFilename(), 1024 * 1024, "avatar");
+        String url = uploadImage(data, file.getOriginalFilename(), 2 * 1024 * 1024, "avatar");
         UserDO patch = new UserDO();
         patch.setId(userId);
         patch.setAvatar(url);
