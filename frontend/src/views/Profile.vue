@@ -27,9 +27,13 @@ const avatarUrl = ref<string | null>(null)
 async function onAvatarChange(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
-  if (!file) return
-  if (file.size > 1024 * 1024) {
-    ElMessage.error('头像不能超过 1MB')
+  // 任何分支都给出可见反馈——杜绝"点了没反应"的静默失败
+  if (!file) {
+    ElMessage.warning('未读到所选文件，请重新选择')
+    return
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    ElMessage.error(`头像大小 ${Math.ceil(file.size / 1024)}KB 超过 2MB 限制，请压缩后重试`)
     input.value = ''
     return
   }
@@ -85,7 +89,7 @@ onMounted(loadAll)
           <p class="muted" style="margin: 2px 0 0">我的面经、收藏点赞复习角、AI 面试记录都在这里</p>
           <label class="avatar-upload">
             <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="onAvatarChange" />
-            更换头像（png/jpg/webp/gif ≤1MB）
+            更换头像（png/jpg/webp/gif ≤2MB）
           </label>
         </div>
       </div>
