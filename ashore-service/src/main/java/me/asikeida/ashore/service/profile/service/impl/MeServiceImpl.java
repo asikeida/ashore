@@ -45,11 +45,18 @@ public class MeServiceImpl implements MeService {
 
     private final me.asikeida.ashore.service.user.repository.mapper.UserMapper userMapper;
 
+    /** 上传业务限额（MB），来自 ashore.upload 配置——业务分闸，multipart 总闸须 ≥ 此值 */
+    private final int avatarMaxMb;
+
+    private final int postImageMaxMb;
+
     public MeServiceImpl(UserFootMapper footMapper, ArticleMapper articleMapper,
                          InterviewSessionMapper interviewSessionMapper, ArticleService articleService,
                          me.asikeida.ashore.service.interact.service.CountService countService,
                          me.asikeida.ashore.service.image.service.ImageUploader imageUploader,
-                         me.asikeida.ashore.service.user.repository.mapper.UserMapper userMapper) {
+                         me.asikeida.ashore.service.user.repository.mapper.UserMapper userMapper,
+                         @org.springframework.beans.factory.annotation.Value("${ashore.upload.avatar-max-mb:2}") int avatarMaxMb,
+                         @org.springframework.beans.factory.annotation.Value("${ashore.upload.post-image-max-mb:5}") int postImageMaxMb) {
         this.footMapper = footMapper;
         this.articleMapper = articleMapper;
         this.interviewSessionMapper = interviewSessionMapper;
@@ -57,6 +64,8 @@ public class MeServiceImpl implements MeService {
         this.countService = countService;
         this.imageUploader = imageUploader;
         this.userMapper = userMapper;
+        this.avatarMaxMb = avatarMaxMb;
+        this.postImageMaxMb = postImageMaxMb;
     }
 
     @Override
@@ -165,7 +174,7 @@ public class MeServiceImpl implements MeService {
             throw me.asikeida.ashore.api.exception.ExceptionUtil.of(
                     me.asikeida.ashore.api.resp.StatusEnum.UPLOAD_INVALID);
         }
-        String url = uploadImage(data, file.getOriginalFilename(), 2 * 1024 * 1024, "avatar");
+        String url = uploadImage(data, file.getOriginalFilename(), avatarMaxMb * 1024 * 1024, "avatar");
         UserDO patch = new UserDO();
         patch.setId(userId);
         patch.setAvatar(url);
@@ -182,7 +191,7 @@ public class MeServiceImpl implements MeService {
             throw me.asikeida.ashore.api.exception.ExceptionUtil.of(
                     me.asikeida.ashore.api.resp.StatusEnum.UPLOAD_INVALID);
         }
-        return uploadImage(data, file.getOriginalFilename(), 5 * 1024 * 1024, "post");
+        return uploadImage(data, file.getOriginalFilename(), postImageMaxMb * 1024 * 1024, "post");
     }
 
     /** 魔数校验 + 大小限制 + 上传。魔数判定防止改扩展名伪装（jpg→exe 之类） */
