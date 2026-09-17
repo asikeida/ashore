@@ -90,6 +90,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(404).body(ResVo.fail(StatusEnum.NOT_FOUND));
     }
 
+    /** multipart 超限（Tomcat 解析层抛出，先于业务校验）：400 + 400004，而非兜底 500 */
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ResVo<Void>> handleMaxUpload(org.springframework.web.multipart.MaxUploadSizeExceededException e) {
+        log.warn("上传文件超过 multipart 上限：{}", e.getMessage());
+        return ResponseEntity.badRequest().body(ResVo.fail(StatusEnum.UPLOAD_INVALID));
+    }
+
     /** 请求方法不匹配（GET 端点收到 POST 等）：405，同理防兜底误吞 */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ResVo<Void>> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
