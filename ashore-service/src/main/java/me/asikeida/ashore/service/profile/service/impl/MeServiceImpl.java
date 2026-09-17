@@ -202,11 +202,28 @@ public class MeServiceImpl implements MeService {
         }
         String ext = detectExt(data);
         if (ext == null) {
+            // 诊断日志：记录文件头 12 字节十六进制，定位用户实际上传的格式
+            StringBuilder hex = new StringBuilder();
+            for (int i = 0; i < Math.min(12, data.length); i++) {
+                hex.append(String.format("%02X ", data[i]));
+            }
+            log.warn("无法识别的图片格式 domain={} filename={} size={} head=[{}]",
+                    domain, filename, data.length, hex.toString().trim());
+            String name = filename == null ? "" : filename.toLowerCase();
+            if (name.endsWith(".heic") || name.endsWith(".heif") || name.endsWith(".avif")) {
+                throw me.asikeida.ashore.api.exception.ExceptionUtil.of(
+                        me.asikeida.ashore.api.resp.StatusEnum.UPLOAD_INVALID,
+                        "不支持 HEIC/AVIF 格式（常见于 iPhone 原图），请转为 JPG 或 PNG 后上传");
+            }
             throw me.asikeida.ashore.api.exception.ExceptionUtil.of(
-                    me.asikeida.ashore.api.resp.StatusEnum.UPLOAD_INVALID);
+                    me.asikeida.ashore.api.resp.StatusEnum.UPLOAD_INVALID,
+                    "无法识别的图片格式，请上传 PNG/JPG/WEBP/GIF");
         }
         return imageUploader.upload(data, ext, domain);
     }
+
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(MeServiceImpl.class);
 
     /** 按文件头魔数识别图片类型；不认识的一律拒绝 */
     private String detectExt(byte[] d) {
