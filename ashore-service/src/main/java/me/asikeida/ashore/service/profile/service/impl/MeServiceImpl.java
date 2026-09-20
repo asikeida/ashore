@@ -225,19 +225,22 @@ public class MeServiceImpl implements MeService {
     private static final org.slf4j.Logger log =
             org.slf4j.LoggerFactory.getLogger(MeServiceImpl.class);
 
-    /** 按文件头魔数识别图片类型；不认识的一律拒绝 */
+    /** 按文件头魔数识别图片类型；不认识的一律拒绝。所有字节比较必须 & 0xFF（byte 有符号） */
     private String detectExt(byte[] d) {
-        if (d.length >= 8 && (d[0] & 0xFF) == 0x89 && d[1] == 'P' && d[2] == 'N' && d[3] == 'G') {
+        if (d.length >= 8 && (d[0] & 0xFF) == 0x89 && (d[1] & 0xFF) == 0x50
+                && (d[2] & 0xFF) == 0x4E && (d[3] & 0xFF) == 0x47) {
             return "png";
         }
-        if (d.length >= 3 && (d[0] & 0xFF) == 0xFF && d[1] == 0xD8 && d[2] == 0xFF) {
+        if (d.length >= 3 && (d[0] & 0xFF) == 0xFF && (d[1] & 0xFF) == 0xD8 && (d[2] & 0xFF) == 0xFF) {
             return "jpg";
         }
-        if (d.length >= 12 && d[0] == 'R' && d[1] == 'I' && d[2] == 'F' && d[3] == 'F'
-                && d[8] == 'W' && d[9] == 'E' && d[10] == 'B' && d[11] == 'P') {
+        if (d.length >= 12 && (d[0] & 0xFF) == 0x52 && (d[1] & 0xFF) == 0x49
+                && (d[2] & 0xFF) == 0x46 && (d[3] & 0xFF) == 0x46
+                && (d[8] & 0xFF) == 0x57 && (d[9] & 0xFF) == 0x45
+                && (d[10] & 0xFF) == 0x42 && (d[11] & 0xFF) == 0x50) {
             return "webp";
         }
-        if (d.length >= 3 && d[0] == 'G' && d[1] == 'I' && d[2] == 'F') {
+        if (d.length >= 3 && (d[0] & 0xFF) == 0x47 && (d[1] & 0xFF) == 0x49 && (d[2] & 0xFF) == 0x46) {
             return "gif";
         }
         return null;
