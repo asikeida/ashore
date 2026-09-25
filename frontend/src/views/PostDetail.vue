@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ChatDotRound, Collection, Pointer, Promotion } from '@element-plus/icons-vue'
@@ -14,6 +14,7 @@ import {
   type CommentItem,
   type PostDetail,
 } from '../api/post'
+import { assistantStream, type ChatMessage } from '../api/assistant'
 import { auth, refreshAuth } from '../stores/auth'
 
 const props = defineProps<{ id: string }>()
@@ -32,11 +33,79 @@ function render(markdown: string | null): string {
   return DOMPurify.sanitize(marked.parse(markdown) as string)
 }
 
+// ── 左侧目录（TOC）：渲染后遍历标题元素建目录，点击平滑跳转 ──
+const contentEl = ref<HTMLElement | null>(null)
+const toc = ref<{ id: string; text: string; level: number }[]>([])
+const activeHeading = ref('')
+
+async function buildToc() {
+  await nextTick()
+  const root = contentEl.value
+  if (!root) return
+  const headings = Array.from(root.querySelectorAll('h1, h2, h3, h4'))
+  toc.value = headings.map((el, i) => {
+    const id = `md-h-${i}`
+    el.id = id
+    return { id, text: el.textContent?.trim() ?? '', level: Number(el.tagName[1]) }
+  })
+  if (headings.length > 0) activeHeading.value = toc.value[0].id
+}
+
+function scrollToHeading(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  activeHeading.value = id
+}
+
+// ── 右侧 AI 助手：常驻面板，SSE 流式对话（历史前端携带，不落库）──
+const assistantOpen = ref(true)
+const chat = ref<ChatMessage[]>([])
+const chatInput = ref('')
+const chatting = ref(false)
+const chatListEl = ref<HTMLElement | null>(null)
+
+async function sendToAssistant() {
+  const text = chatInput.value.trim()
+  if (!text || chatting.value) return
+  chatInput.value = ''
+  chatting.value = true
+  chat.value.push({ role: 'user', content: text })
+  const placeholder: ChatMessage = { role: 'assistant', content: '' }
+  chat.value.push(placeholder)
+  scrollChat()
+  try {
+    // 历史不含刚 push 的占位 assistant（避免空内容进入上下文）
+    const history = chat.value.slice(0, -2)
+    await assistantStream(props.id, text, history, delta => {
+      placeholder.content += delta
+      scrollChat()
+    })
+  } catch (err) {
+    placeholder.content = placeholder.content || (err instanceof Error ? err.message : 'AI 服务暂不可用')
+  } finally {
+    chatting.value = false
+    scrollChat()
+  }
+}
+
+function scrollChat() {
+  requestAnimationFrame(() => {
+    chatListEl.value?.scrollTo({ top: chatListEl.value.scrollHeight })
+  })
+}
+
 async function load() {
   try {
     post.value = await fetchPost(props.id)
     const page = await fetchComments(props.id, null)
     comments.value = page.items
+    await buildToc()
+    // 助手开场白：告知已读本文（截前 120 字证明"读过"）
+    if (post.value.content) {
+      chat.value.push({
+        role: 'assistant',
+        content: '我已读完这篇面经。可以问我文中概念的细节、帮你评估复盘质量、模拟面试官追问，或者提改进建议。',
+      })
+    }
   } catch {
     notFound.value = true
   }
@@ -84,108 +153,395 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="container">
+  <div class="container-wide">
     <el-empty v-if="notFound" description="面经不存在或不可见">
       <RouterLink to="/"><el-button type="primary" plain>返回列表</el-button></RouterLink>
     </el-empty>
 
-    <template v-if="post">
-      <article class="panel">
-        <h1 class="post-title">{{ post.title }}</h1>
-        <div class="muted meta-row">
-          <el-avatar :size="24" class="author-avatar">{{ (post.authorId ?? '匿名')[0] }}</el-avatar>
-          <span>{{ post.authorId }}</span>
-          <el-divider direction="vertical" />
-          <span>{{ formatTime(post.createTime) }}</span>
-          <el-divider direction="vertical" />
-          <span>阅 {{ post.readCount }}</span>
-        </div>
-        <div v-if="post.tags.length" class="tag-row">
-          <el-tag v-for="tag in post.tags" :key="tag" effect="plain" round>{{ tag }}</el-tag>
-        </div>
-        <el-divider style="margin: 16px 0" />
-        <div class="post-content" v-html="render(post.content)"></div>
+    <div v-if="post" class="detail-layout">
+      <!-- 左：目录 -->
+      <aside v-if="toc.length > 0" class="toc panel">
+        <div class="toc-title">目录</div>
+        <a
+          v-for="item in toc"
+          :key="item.id"
+          class="toc-item"
+          :class="[`lv${item.level}`, { active: activeHeading === item.id }]"
+          @click="scrollToHeading(item.id)"
+        >{{ item.text }}</a>
+      </aside>
 
-        <div class="actions">
-          <el-button
-            :type="post.praised ? 'primary' : 'default'"
-            :icon="Pointer"
-            round
-            @click="praise"
-          >
-            {{ post.praised ? '已赞' : '点赞' }} · {{ post.praiseCount }}
-          </el-button>
-          <el-button
-            :type="post.collected ? 'warning' : 'default'"
-            :icon="Collection"
-            round
-            @click="collect"
-          >
-            {{ post.collected ? '已藏' : '收藏' }} · {{ post.collectCount }}
-          </el-button>
-          <el-button
-            type="primary"
-            :icon="ChatDotRound"
-            :loading="aiStarting"
-            @click="startInterview"
-          >
-            AI 面试官
-          </el-button>
-        </div>
-      </article>
+      <!-- 中：正文 + 评论 -->
+      <div class="detail-main">
+        <article class="panel">
+          <h1 class="post-title">{{ post.title }}</h1>
+          <div class="muted meta-row">
+            <el-avatar :size="24" class="author-avatar">{{ (post.authorId ?? '匿名')[0] }}</el-avatar>
+            <span>{{ post.authorId }}</span>
+            <el-divider direction="vertical" />
+            <span>{{ formatTime(post.createTime) }}</span>
+            <el-divider direction="vertical" />
+            <span>阅 {{ post.readCount }}</span>
+          </div>
+          <div v-if="post.tags.length" class="tag-row">
+            <el-tag v-for="tag in post.tags" :key="tag" effect="plain" round>{{ tag }}</el-tag>
+          </div>
+          <el-divider style="margin: 16px 0" />
+          <div ref="contentEl" class="post-content" v-html="render(post.content)"></div>
 
-      <section class="panel">
-        <h3 class="section-title">评论（{{ post.commentCount }}）</h3>
-        <div v-if="auth.loggedIn" class="comment-editor">
-          <el-input
-            v-model="commentText"
-            type="textarea"
-            :rows="3"
-            maxlength="1000"
-            show-word-limit
-            placeholder="写下你的评论…"
-          />
-          <div style="margin-top: 10px; text-align: right">
-            <el-button type="primary" :icon="Promotion" :loading="submitting" @click="submitComment">
-              发布评论
+          <div class="actions">
+            <el-button
+              :type="post.praised ? 'primary' : 'default'"
+              :icon="Pointer"
+              round
+              @click="praise"
+            >
+              {{ post.praised ? '已赞' : '点赞' }} · {{ post.praiseCount }}
+            </el-button>
+            <el-button
+              :type="post.collected ? 'warning' : 'default'"
+              :icon="Collection"
+              round
+              @click="collect"
+            >
+              {{ post.collected ? '已藏' : '收藏' }} · {{ post.collectCount }}
+            </el-button>
+            <el-button
+              type="primary"
+              :icon="ChatDotRound"
+              :loading="aiStarting"
+              @click="startInterview"
+            >
+              AI 面试官
             </el-button>
           </div>
-        </div>
-        <el-alert
-          v-else
-          title="登录后即可参与评论"
-          type="info"
-          :closable="false"
-          style="margin-bottom: 12px"
-        />
+        </article>
 
-        <div v-for="comment in comments" :key="comment.id" class="comment">
-          <div class="comment-head">
-            <el-avatar :size="26" class="author-avatar">{{ comment.nickname[0] }}</el-avatar>
-            <strong>{{ comment.nickname }}</strong>
-            <span class="muted">{{ formatTime(comment.createTime) }}</span>
-          </div>
-          <div class="comment-body">{{ comment.content }}</div>
-          <div v-for="reply in comment.replies" :key="reply.id" class="reply">
-            <div class="comment-head">
-              <el-avatar :size="22" class="author-avatar">{{ reply.nickname[0] }}</el-avatar>
-              <strong>{{ reply.nickname }}</strong>
-              <span v-if="reply.replyNickname" class="muted">回复 @{{ reply.replyNickname }}</span>
+        <section class="panel">
+          <h3 class="section-title">评论（{{ post.commentCount }}）</h3>
+          <div v-if="auth.loggedIn" class="comment-editor">
+            <el-input
+              v-model="commentText"
+              type="textarea"
+              :rows="3"
+              maxlength="1000"
+              show-word-limit
+              placeholder="写下你的评论…"
+            />
+            <div style="margin-top: 10px; text-align: right">
+              <el-button type="primary" :icon="Promotion" :loading="submitting" @click="submitComment">
+                发布评论
+              </el-button>
             </div>
-            <div class="comment-body">{{ reply.content }}</div>
+          </div>
+          <el-alert
+            v-else
+            title="登录后即可参与评论"
+            type="info"
+            :closable="false"
+            style="margin-bottom: 12px"
+          />
+
+          <div v-for="comment in comments" :key="comment.id" class="comment">
+            <div class="comment-head">
+              <el-avatar :size="26" class="author-avatar">{{ comment.nickname[0] }}</el-avatar>
+              <strong>{{ comment.nickname }}</strong>
+              <span class="muted">{{ formatTime(comment.createTime) }}</span>
+            </div>
+            <div class="comment-body">{{ comment.content }}</div>
+            <div v-for="reply in comment.replies" :key="reply.id" class="reply">
+              <div class="comment-head">
+                <el-avatar :size="22" class="author-avatar">{{ reply.nickname[0] }}</el-avatar>
+                <strong>{{ reply.nickname }}</strong>
+                <span v-if="reply.replyNickname" class="muted">回复 @{{ reply.replyNickname }}</span>
+              </div>
+              <div class="comment-body">{{ reply.content }}</div>
+            </div>
+          </div>
+          <el-empty
+            v-if="comments.length === 0"
+            :image-size="72"
+            description="还没有评论，来抢沙发"
+          />
+        </section>
+      </div>
+
+      <!-- 右：AI 助手 -->
+      <aside class="ai-panel panel">
+        <div class="ai-head">
+          <span class="ai-title">🤖 AI 助手</span>
+          <span class="muted ai-sub">已读本文 · 随问随答</span>
+        </div>
+        <div ref="chatListEl" class="chat-list">
+          <div
+            v-for="(m, i) in chat"
+            :key="i"
+            class="chat-row"
+            :class="m.role === 'user' ? 'row-user' : 'row-assistant'"
+          >
+            <div class="bubble">{{ m.content }}<span v-if="chatting && i === chat.length - 1 && m.role === 'assistant'" class="cursor">▌</span></div>
           </div>
         </div>
-        <el-empty
-          v-if="comments.length === 0"
-          :image-size="72"
-          description="还没有评论，来抢沙发"
-        />
-      </section>
-    </template>
+        <div class="chat-input">
+          <el-input
+            v-model="chatInput"
+            placeholder="问问这篇文章…（Enter 发送）"
+            :disabled="chatting"
+            @keyup.enter="sendToAssistant"
+          />
+          <el-button type="primary" :icon="Promotion" :loading="chatting" @click="sendToAssistant" />
+        </div>
+      </aside>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.detail-layout {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) 300px;
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 1280px) {
+  .toc {
+    display: none;
+  }
+  .detail-layout {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+}
+
+@media (max-width: 1000px) {
+  .detail-layout {
+    grid-template-columns: 1fr;
+  }
+  .ai-panel {
+    position: static;
+    max-height: none;
+  }
+}
+
+/* 目录 */
+.toc {
+  position: sticky;
+  top: 76px;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.toc-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  padding-left: 8px;
+}
+
+.toc-item {
+  display: block;
+  font-size: 13px;
+  color: var(--text);
+  text-decoration: none;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toc-item:hover {
+  background: var(--bg);
+  color: var(--accent);
+}
+
+.toc-item.active {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--el-color-primary-light-9);
+}
+
+.toc-item.lv2 {
+  padding-left: 20px;
+}
+
+.toc-item.lv3,
+.toc-item.lv4 {
+  padding-left: 32px;
+  color: var(--muted);
+}
+
+/* AI 面板 */
+.ai-panel {
+  position: sticky;
+  top: 76px;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 100px);
+  max-height: 720px;
+  padding: 14px;
+}
+
+.ai-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+
+.ai-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.ai-sub {
+  font-size: 12px;
+}
+
+.chat-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 2px;
+}
+
+.chat-row {
+  display: flex;
+}
+
+.row-user {
+  justify-content: flex-end;
+}
+
+.row-assistant {
+  justify-content: flex-start;
+}
+
+.bubble {
+  max-width: 88%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.row-user .bubble {
+  background: var(--el-color-primary);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.row-assistant .bubble {
+  background: var(--bg);
+  color: var(--text);
+  border-bottom-left-radius: 4px;
+}
+
+.cursor {
+  animation: blink 0.9s infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.chat-input {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* 正文排版 */
+.post-content {
+  line-height: 1.85;
+  word-break: break-word;
+}
+
+.post-content :deep(h1),
+.post-content :deep(h2),
+.post-content :deep(h3),
+.post-content :deep(h4) {
+  margin: 22px 0 12px;
+  scroll-margin-top: 80px;
+}
+
+.post-content :deep(h2) {
+  font-size: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.post-content :deep(p) {
+  margin: 10px 0;
+}
+
+.post-content :deep(img) {
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin: 8px 0;
+}
+
+.post-content :deep(code) {
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.post-content :deep(pre) {
+  background: #1e1e2e;
+  color: #e6e6e6;
+  padding: 14px;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.post-content :deep(pre code) {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.post-content :deep(blockquote) {
+  border-left: 3px solid var(--el-color-primary);
+  margin: 10px 0;
+  padding: 4px 14px;
+  color: var(--muted);
+  background: var(--bg);
+  border-radius: 0 8px 8px 0;
+}
+
+.post-content :deep(ul),
+.post-content :deep(ol) {
+  padding-left: 24px;
+  margin: 10px 0;
+}
+
+.post-content :deep(table) {
+  border-collapse: collapse;
+  margin: 12px 0;
+  width: 100%;
+}
+
+.post-content :deep(th),
+.post-content :deep(td) {
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  font-size: 13.5px;
+}
+
 .post-title {
   margin: 0 0 10px;
   font-size: 24px;

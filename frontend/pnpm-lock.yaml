@@ -188,6 +188,9 @@ importers:
       '@tsconfig/node24':
         specifier: ^24.0.1
         version: 24.0.5
+      '@types/dompurify':
+        specifier: ^3.2.0
+        version: 3.2.0
       '@vitejs/plugin-vue':
         specifier: ^5.2.1
         version: 5.2.4(vite@6.4.5)(vue@3.5.44(typescript@5.7.3))
@@ -571,6 +574,10 @@ packages:
 
   '@tsconfig/node24@24.0.5':
     resolution: {integrity: sha512-DWC54fGPuhZgg3Ighg4Y/A/bA3ZdB5hnzAuv/MkQ/X85sVsBsMQxu8t7khutdYeiNksBbFdDyeqv1HSW2Zl8aA==}
+
+  '@types/dompurify@3.2.0':
+    resolution: {integrity: sha512-Fgg31wv9QbLDA0SpTOXO3MaxySc4DKGLi8sna4/Utjo4r3ZRPdCt4UQee8BWr+Q5z21yifghREPJGYaEOEIACg==}
+    deprecated: This is a stub types definition. dompurify provides its own type definitions, so you do not need this installed.
 
   '@types/estree@1.0.10':
     resolution: {integrity: sha512-lTyOMnOcmRBzdCv6/4zUZCrEhV0xrqQiUZBZtVcbmLHBXKLnN8q89v/wKRF/Q0HbwVsqbIG3o5HDoFl9sduM+g==}
@@ -1233,6 +1240,10 @@ snapshots:
   '@sxzz/popperjs-es@2.11.8': {}
 
   '@tsconfig/node24@24.0.5': {}
+
+  '@types/dompurify@3.2.0':
+    dependencies:
+      dompurify: 3.4.17
 
   '@types/estree@1.0.10': {}
 
