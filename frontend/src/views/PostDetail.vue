@@ -129,15 +129,31 @@ async function submitComment() {
   if (!commentText.value.trim() || submitting.value) return
   submitting.value = true
   try {
-    await createComment(props.id, commentText.value.trim(), null)
+    await createComment(props.id, commentText.value.trim(), replyTo.value?.commentId ?? null)
     commentText.value = ''
     post.value!.commentCount += 1
     const page = await fetchComments(props.id, null)
     comments.value = page.items
-    ElMessage.success('评论已发布')
+    ElMessage.success(replyTo.value ? '回复已发布' : '评论已发布')
+    cancelReply()
   } finally {
     submitting.value = false
   }
+}
+
+// ── 评论回复（后端 parentCommentId 已支持，此处补交互入口）──
+const replyTo = ref<{ commentId: string; nickname: string } | null>(null)
+const commentInputRef = ref<InstanceType<typeof import('element-plus')['ElInput']>>()
+
+function startReply(commentId: string, nickname: string) {
+  replyTo.value = { commentId, nickname }
+  // 滚动到评论输入框并聚焦（评论列表可能很长）
+  document.querySelector('.comment-editor')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  requestAnimationFrame(() => commentInputRef.value?.focus())
+}
+
+function cancelReply() {
+  replyTo.value = null
 }
 
 function startInterview() {
@@ -220,13 +236,22 @@ onMounted(load)
         <section class="panel">
           <h3 class="section-title">评论（{{ post.commentCount }}）</h3>
           <div v-if="auth.loggedIn" class="comment-editor">
+            <el-alert
+              v-if="replyTo"
+              :title="`回复 @${replyTo.nickname}`"
+              type="info"
+              :closable="true"
+              style="margin-bottom: 8px"
+              @close="cancelReply"
+            />
             <el-input
+              ref="commentInputRef"
               v-model="commentText"
               type="textarea"
               :rows="3"
               maxlength="1000"
               show-word-limit
-              placeholder="写下你的评论…"
+              :placeholder="replyTo ? `回复 @${replyTo.nickname}…` : '写下你的评论…'"
             />
             <div style="margin-top: 10px; text-align: right">
               <el-button type="primary" :icon="Promotion" :loading="submitting" @click="submitComment">
@@ -247,6 +272,11 @@ onMounted(load)
               <el-avatar :size="26" class="author-avatar">{{ comment.nickname[0] }}</el-avatar>
               <strong>{{ comment.nickname }}</strong>
               <span class="muted">{{ formatTime(comment.createTime) }}</span>
+              <button
+                v-if="auth.loggedIn"
+                class="reply-btn"
+                @click="startReply(comment.id, comment.nickname)"
+              >回复</button>
             </div>
             <div class="comment-body">{{ comment.content }}</div>
             <div v-for="reply in comment.replies" :key="reply.id" class="reply">
@@ -254,6 +284,11 @@ onMounted(load)
                 <el-avatar :size="22" class="author-avatar">{{ reply.nickname[0] }}</el-avatar>
                 <strong>{{ reply.nickname }}</strong>
                 <span v-if="reply.replyNickname" class="muted">回复 @{{ reply.replyNickname }}</span>
+                <button
+                  v-if="auth.loggedIn"
+                  class="reply-btn"
+                  @click="startReply(reply.id, reply.nickname)"
+                >回复</button>
               </div>
               <div class="comment-body">{{ reply.content }}</div>
             </div>
@@ -597,6 +632,21 @@ onMounted(load)
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
+}
+
+.reply-btn {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--el-color-primary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.reply-btn:hover {
+  background: var(--el-color-primary-light-9);
 }
 
 .comment-body {
