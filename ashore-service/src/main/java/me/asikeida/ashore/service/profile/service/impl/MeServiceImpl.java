@@ -55,6 +55,7 @@ public class MeServiceImpl implements MeService {
                          me.asikeida.ashore.service.interact.service.CountService countService,
                          me.asikeida.ashore.service.image.service.ImageUploader imageUploader,
                          me.asikeida.ashore.service.user.repository.mapper.UserMapper userMapper,
+                         me.asikeida.ashore.service.interact.repository.mapper.AssistantMessageMapper assistantMessageMapper,
                          @org.springframework.beans.factory.annotation.Value("${ashore.upload.avatar-max-mb:2}") int avatarMaxMb,
                          @org.springframework.beans.factory.annotation.Value("${ashore.upload.post-image-max-mb:5}") int postImageMaxMb) {
         this.footMapper = footMapper;
@@ -64,6 +65,7 @@ public class MeServiceImpl implements MeService {
         this.countService = countService;
         this.imageUploader = imageUploader;
         this.userMapper = userMapper;
+        this.assistantMessageMapper = assistantMessageMapper;
         this.avatarMaxMb = avatarMaxMb;
         this.postImageMaxMb = postImageMaxMb;
     }
@@ -163,6 +165,41 @@ public class MeServiceImpl implements MeService {
     public String avatarOf(Long userId) {
         UserDO user = userMapper.selectById(userId);
         return user == null ? null : user.getAvatar();
+    }
+
+    @Override
+    public List<me.asikeida.ashore.api.vo.profile.AssistantRecordVo> assistantRecords(Long userId) {
+        // 最近 200 条消息（跨该用户全部面经），按面经分组聚合出轮数/最近时间/最后一条
+        List<me.asikeida.ashore.service.interact.repository.entity.AssistantMessageDO> rows =
+                assistantMessageMapper.selectList(new LambdaQueryWrapper<me.asikeida.ashore.service.interact.repository.entity.AssistantMessageDO>()
+                        .eq(me.asikeida.ashore.service.interact.repository.entity.AssistantMessageDO::getUserId, userId)
+                        .orderByDesc(me.asikeida.ashore.service.interact.repository.entity.AssistantMessageDO::getCreateTime)
+                        .last("LIMIT 200"));
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        var articleById = articleMapper.selectBatchIds(
+                        rows.stream().map(me.asikeida.ashore.service.interact.repository.entity.AssistantMessageDO::getArticleId).distinct().toList())
+                .stream().collect(Collectors.toMap(ArticleDO::getId, a -> a, (a, b) -> a));
+        // LinkedHashMap 保序（rows 已按时间倒序 → 分组首次出现序即最近活跃序）
+        Map<Long, List<me.asikeida.ashore.service.interact.repository.entity.AssistantMessageDO>> byArticle =
+                new java.util.LinkedHashMap<>();
+        for (var r : rows) {
+            byArticle.computeIfAbsent(r.getArticleId(), k -> new java.util.ArrayList<>()).add(r);
+        }
+        return byArticle.entrySet().stream()
+                .map(e -> {
+                    var list = e.getValue();
+                    var last = list.get(0);
+                    var article = articleById.get(e.getKey());
+                    return new me.asikeida.ashore.api.vo.profile.AssistantRecordVo(
+                            String.valueOf(e.getKey()),
+                            article == null ? "（面经已删除）" : article.getTitle(),
+                            list.size(),
+                            last.getCreateTime() == null ? null : last.getCreateTime().toString(),
+                            last.getContent().length() > 80 ? last.getContent().substring(0, 80) + "…" : last.getContent());
+                })
+                .toList();
     }
 
     @Override

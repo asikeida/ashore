@@ -83,6 +83,11 @@ class RankConcurrencyTests {
     void concurrentDistinctUsersFirstReadScoredExactlyOnce() throws Exception {
         org.junit.jupiter.api.Assumptions.assumeTrue(tunnelUp(), "需要 SSH 隧道（redis 16379）");
         int users = 30;
+        String dailyKey = DAILY_KEY_PREFIX + java.time.LocalDate.now();
+        String monthlyKey = MONTHLY_KEY_PREFIX + java.time.YearMonth.from(java.time.LocalDate.now());
+        // 共享 dev Redis 的残留数据会让绝对计数断言偶发失败（前次失败运行清理未执行），
+        // 记录前先清空当日/当月榜，保证断言只反映本次 30 用户的写入
+        redisTemplate.delete(List.of(dailyKey, monthlyKey));
         // 同一文章、30 个不同用户并发首读（READ 计 1 分，acted 哈希同人同文同动作去重）
         runConcurrently(users, i -> {
             LoginUser user = new LoginUser(991_000L + i, "rank-u" + i, "USER");
@@ -90,8 +95,6 @@ class RankConcurrencyTests {
             return true;
         });
 
-        String dailyKey = DAILY_KEY_PREFIX + java.time.LocalDate.now();
-        String monthlyKey = MONTHLY_KEY_PREFIX + java.time.YearMonth.from(java.time.LocalDate.now());
         // 去重语义：同人同文同动作只计 1 次 → 30 用户各 1 分，双榜成员各恰好 30
         Double dailyScore = redisTemplate.opsForZSet().score(dailyKey, "991000");
         assertThat(dailyScore).as("日榜成员应有分且恰为 1（去重）").isEqualTo(1.0);

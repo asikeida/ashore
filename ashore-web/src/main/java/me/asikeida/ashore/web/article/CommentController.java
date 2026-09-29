@@ -41,13 +41,22 @@ public class CommentController {
         return ResVo.ok(commentService.create(id, req, current()));
     }
 
-    @Operation(summary = "评论列表", description = "公开；顶级评论游标分页，子回复折叠返回")
+    @Operation(summary = "评论列表", description = "公开；顶级评论游标分页，子回复折叠返回；登录时附带各评论是否已赞")
     @GetMapping("/posts/{id}/comments")
     public ResVo<CommentPageVo> list(
             @PathVariable Long id,
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) Integer pageSize) {
-        return ResVo.ok(commentService.list(id, cursor, pageSize));
+        return ResVo.ok(commentService.list(id, cursor, pageSize, current()));
+    }
+
+    @Operation(summary = "评论点赞/取消", description = "需登录；幂等 toggle，返回操作后状态与最新计数")
+    @Permission
+    @PostMapping("/comments/{id}/like")
+    public ResVo<CommentService.LikeResult> toggleLike(@PathVariable Long id) {
+        LoginUser user = current();
+        // 评论必须属于当前文章路径（路径中的文章 id 由前端传入；此处从评论反查校验一致性）
+        return ResVo.ok(commentService.toggleLike(id, user));
     }
 
     @Operation(summary = "删除评论", description = "仅作者或管理员；软删除")

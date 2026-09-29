@@ -19,9 +19,20 @@ public interface CommentService {
      *
      * @param cursor  上一页最后一条顶级评论 id；null 表示第一页
      * @param pageSize 页大小，缺省 10，上限 50
+     * @param viewer  当前登录用户；null（未登录）时 liked 恒 false
      */
-    CommentPageVo list(Long articleId, String cursor, Integer pageSize);
+    CommentPageVo list(Long articleId, String cursor, Integer pageSize, LoginUser viewer);
 
     /** 软删除评论：仅作者或管理员 */
     void delete(Long commentId, LoginUser operator);
+
+    /**
+     * 点赞/取消点赞（幂等 toggle）：插入或删除 comment_like 行。
+     *
+     * @return record(liked, likeCount)——操作后的状态与最新计数
+     */
+    LikeResult toggleLike(Long commentId, LoginUser operator);
+
+    record LikeResult(boolean liked, long likeCount) {
+    }
 }

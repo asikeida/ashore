@@ -41,12 +41,16 @@ export interface CommentItem {
   nickname: string
   content: string
   createTime: string
+  likeCount: number
+  liked: boolean
   replies: {
     id: string
     nickname: string
     content: string
     replyNickname: string | null
     createTime: string
+    likeCount: number
+    liked: boolean
   }[]
 }
 
@@ -108,6 +112,11 @@ export async function createComment(
   parentCommentId: string | null,
 ): Promise<unknown> {
   return apiPost(`/api/v1/posts/${id}/comments`, { content, parentCommentId })
+}
+
+/** 评论点赞/取消（幂等 toggle），返回操作后状态与最新计数 */
+export async function toggleCommentLike(commentId: string): Promise<{ liked: boolean; likeCount: number }> {
+  return apiPost<{ liked: boolean; likeCount: number }>(`/api/v1/comments/${commentId}/like`)
 }
 
 /** AI 面试官 */
