@@ -71,6 +71,13 @@ public class MeController {
         return ResVo.ok(meService.avatarOf(ReqContext.loginUser().userId()));
     }
 
+    @Operation(summary = "AI 助手记录", description = "按面经分组的助手对话（轮数/最近时间/最后一条），最近活跃在前")
+    @Permission
+    @GetMapping("/assistant-records")
+    public ResVo<List<me.asikeida.ashore.api.vo.profile.AssistantRecordVo>> assistantRecords() {
+        return ResVo.ok(meService.assistantRecords(ReqContext.loginUser().userId()));
+    }
+
     @Operation(summary = "上传头像", description = "multipart 图片（png/jpg/webp/gif，≤1MB）；返回头像 URL 并写入个人资料")
     @Permission
     @PostMapping(value = "/avatar", consumes = "multipart/form-data")

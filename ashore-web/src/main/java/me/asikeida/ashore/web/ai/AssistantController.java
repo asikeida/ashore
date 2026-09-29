@@ -51,23 +51,27 @@ public class AssistantController {
         this.aiStreamExecutor = aiStreamExecutor;
     }
 
-    /** 历史摘要（前端进入面板时取文章全文做上下文展示用——返回标题+前 N 字） */
-    @Operation(summary = "助手上下文预览", description = "需登录；返回文章标题与正文摘要（供面板展示\"已阅读本文\"）")
+    /** 历史对话（登录用户 + 指定文章，正序）——打开面板时回填会话 */
+    @Operation(summary = "助手历史", description = "需登录；返回当前用户在该面经下的历史对话（正序）")
     @Permission
-    @GetMapping("/{articleId}/context")
-    public ResVo<String> context(@PathVariable Long articleId) {
-        PostDetailVo detail = articleService.detail(articleId, ReqContext.loginUser());
-        String excerpt = detail.content() == null ? "" :
-                detail.content().substring(0, Math.min(160, detail.content().length()));
-        return me.asikeida.ashore.api.resp.ResVo.ok(detail.title() + "\n" + excerpt + "…");
+    @GetMapping("/{articleId}/history")
+    public ResVo<List<AiChatClient.Message>> history(@PathVariable Long articleId) {
+        return ResVo.ok(assistantService.history(ReqContext.loginUser().userId(), articleId));
     }
 
-    @Operation(summary = "流式对话", description = "需登录；SSE 增量推送（事件协议与面试官一致），历史由请求体携带")
+    @Operation(summary = "流式对话", description = "需登录；SSE 增量推送（事件协议与面试官一致）；本轮对话流前/流后落库")
     @Permission
     @PostMapping("/{articleId}/stream")
-    public SseEmitter stream(@PathVariable Long articleId, @RequestBody AssistantReq req) {
+    public SseEmitter stream(@PathVariable Long articleId, @RequestBody AssistantReq req,
+                             jakarta.servlet.http.HttpServletResponse response) {
         LoginUser user = ReqContext.loginUser();
+        // SSE 禁缓冲：Nginx 按此头逐响应关闭 proxy_buffering——增量实时到达浏览器
+        // （缺失时增量被攒块，表现为"一下子全出来"，2026-11-10 实测）
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache");
         SseEmitter emitter = new SseEmitter(180_000L);
+        // user 消息流前落库（assistant 回复流后落库）——落库失败仅告警不影响对话
+        assistantService.saveTurn(user.userId(), articleId, req.message(), null);
         aiStreamExecutor.execute(() -> {
             try {
                 String full = assistantService.answerStream(articleId, req.message(), req.history(),
@@ -79,6 +83,7 @@ public class AssistantController {
                                 throw new IllegalStateException("SSE 推送中断", e);
                             }
                         });
+                assistantService.saveTurn(user.userId(), articleId, null, full);
                 emitter.send(SseEmitter.event().data(
                         MAPPER.writeValueAsString(Map.of("done", true, "total", full.length()))));
                 emitter.complete();

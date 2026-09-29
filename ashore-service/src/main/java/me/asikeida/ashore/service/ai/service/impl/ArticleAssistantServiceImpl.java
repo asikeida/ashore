@@ -12,6 +12,9 @@ import me.asikeida.ashore.service.article.repository.entity.ArticleDO;
 import me.asikeida.ashore.service.article.repository.entity.ArticleDetailDO;
 import me.asikeida.ashore.service.article.repository.mapper.ArticleDetailMapper;
 import me.asikeida.ashore.service.article.repository.mapper.ArticleMapper;
+import me.asikeida.ashore.service.interact.repository.mapper.AssistantMessageMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -37,11 +40,16 @@ public class ArticleAssistantServiceImpl implements ArticleAssistantService {
 
     private final ArticleDetailMapper detailMapper;
 
+    private final AssistantMessageMapper messageMapper;
+
+    private static final Logger log = LoggerFactory.getLogger(ArticleAssistantServiceImpl.class);
+
     public ArticleAssistantServiceImpl(AiChatClient aiChatClient, ArticleMapper articleMapper,
-                                       ArticleDetailMapper detailMapper) {
+                                       ArticleDetailMapper detailMapper, AssistantMessageMapper messageMapper) {
         this.aiChatClient = aiChatClient;
         this.articleMapper = articleMapper;
         this.detailMapper = detailMapper;
+        this.messageMapper = messageMapper;
     }
 
     @Override
@@ -77,5 +85,46 @@ public class ArticleAssistantServiceImpl implements ArticleAssistantService {
                         .orderByDesc(ArticleDetailDO::getVersion)
                         .last("LIMIT 1"));
         return latest == null ? "" : latest.getContent();
+    }
+
+    @Override
+    public void saveTurn(Long userId, Long articleId, String userMessage, String assistantReply) {
+        // 旁路语义：落库失败仅告警（对话体验优先于记录完整性；页面会话不受影响）
+        try {
+            if (userMessage != null && !userMessage.isBlank()) {
+                messageMapper.insert(message(userId, articleId, "user", userMessage));
+            }
+            if (assistantReply != null && !assistantReply.isBlank()) {
+                messageMapper.insert(message(userId, articleId, "assistant", assistantReply));
+            }
+        } catch (Exception e) {
+            log.warn("助手对话落库失败 userId={} articleId={}: {}", userId, articleId, e.getMessage());
+        }
+    }
+
+    @Override
+    public List<AiChatClient.Message> history(Long userId, Long articleId) {
+        // 新到旧取 100 条，反转为正序返回（对话阅读顺序）
+        List<me.asikeida.ashore.service.interact.repository.entity.AssistantMessageDO> rows =
+                messageMapper.selectList(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<me.asikeida.ashore.service.interact.repository.entity.AssistantMessageDO>()
+                        .eq(me.asikeida.ashore.service.interact.repository.entity.AssistantMessageDO::getUserId, userId)
+                        .eq(me.asikeida.ashore.service.interact.repository.entity.AssistantMessageDO::getArticleId, articleId)
+                        .orderByDesc(me.asikeida.ashore.service.interact.repository.entity.AssistantMessageDO::getCreateTime)
+                        .last("LIMIT 100"));
+        java.util.Collections.reverse(rows);
+        return rows.stream()
+                .map(r -> new AiChatClient.Message(r.getRole(), r.getContent()))
+                .toList();
+    }
+
+    private me.asikeida.ashore.service.interact.repository.entity.AssistantMessageDO message(
+            Long userId, Long articleId, String role, String content) {
+        me.asikeida.ashore.service.interact.repository.entity.AssistantMessageDO m =
+                new me.asikeida.ashore.service.interact.repository.entity.AssistantMessageDO();
+        m.setUserId(userId);
+        m.setArticleId(articleId);
+        m.setRole(role);
+        m.setContent(content);
+        return m;
     }
 }

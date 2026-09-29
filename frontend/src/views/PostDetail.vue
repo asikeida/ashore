@@ -7,6 +7,7 @@ import { ElMessage } from 'element-plus'
 import { ChatDotRound, Collection, Pointer, Promotion } from '@element-plus/icons-vue'
 import {
   createComment,
+  toggleCommentLike,
   fetchComments,
   fetchPost,
   toggleCollect,
@@ -198,6 +199,36 @@ function cancelReply() {
   replyTo.value = null
 }
 
+/** 评论点赞 toggle：本地状态即时更新（乐观），失败回滚 */
+async function likeComment(commentId: string) {
+  const target = findComment(commentId)
+  if (!target) return
+  const wasLiked = target.liked
+  // 乐观更新
+  target.liked = !wasLiked
+  target.likeCount += wasLiked ? -1 : 1
+  try {
+    const result = await toggleCommentLike(commentId)
+    target.liked = result.liked
+    target.likeCount = result.likeCount
+  } catch (err) {
+    // 回滚
+    target.liked = wasLiked
+    target.likeCount += wasLiked ? 1 : -1
+    ElMessage.error(err instanceof Error ? err.message : '操作失败')
+  }
+}
+
+/** 在评论树（顶级+子回复）中按 id 定位 */
+function findComment(commentId: string): { liked: boolean; likeCount: number } | undefined {
+  for (const c of comments.value) {
+    if (c.id === commentId) return c
+    const r = c.replies.find(x => x.id === commentId)
+    if (r) return r
+  }
+  return undefined
+}
+
 function startInterview() {
   aiStarting.value = true
   router.push(`/posts/${props.id}/interview`)
@@ -319,6 +350,12 @@ onMounted(load)
                 class="reply-btn"
                 @click="startReply(comment.id, comment.nickname)"
               >回复</button>
+              <button
+                v-if="auth.loggedIn"
+                class="like-btn"
+                :class="{ on: comment.liked }"
+                @click="likeComment(comment.id)"
+              >👍 {{ comment.likeCount > 0 ? comment.likeCount : '' }}</button>
             </div>
             <div class="comment-body">{{ comment.content }}</div>
             <div v-for="reply in comment.replies" :key="reply.id" class="reply">
@@ -331,6 +368,12 @@ onMounted(load)
                   class="reply-btn"
                   @click="startReply(reply.id, reply.nickname)"
                 >回复</button>
+                <button
+                  v-if="auth.loggedIn"
+                  class="like-btn"
+                  :class="{ on: reply.liked }"
+                  @click="likeComment(reply.id)"
+                >👍 {{ reply.likeCount > 0 ? reply.likeCount : '' }}</button>
               </div>
               <div class="comment-body">{{ reply.content }}</div>
             </div>
@@ -693,6 +736,25 @@ onMounted(load)
 
 .reply-btn:hover {
   background: var(--el-color-primary-light-9);
+}
+
+.like-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted, #86909c);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.like-btn:hover {
+  background: #f5f7fa;
+}
+
+.like-btn.on {
+  color: var(--el-color-primary);
+  font-weight: 600;
 }
 
 .comment-body {

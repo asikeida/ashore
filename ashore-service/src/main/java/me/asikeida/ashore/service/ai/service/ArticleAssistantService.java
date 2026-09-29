@@ -22,4 +22,10 @@ public interface ArticleAssistantService {
      */
     String answerStream(Long articleId, String message, List<AiChatClient.Message> history,
                         Consumer<String> onDelta);
+
+    /** 追加保存一轮对话（user 消息 + assistant 回复）；user 消息在流开始前保存，失败重试不产生重复 assistant */
+    void saveTurn(Long userId, Long articleId, String userMessage, String assistantReply);
+
+    /** 历史对话（新到旧，调用方如需正序自行反转），上限 100 条 */
+    List<AiChatClient.Message> history(Long userId, Long articleId);
 }

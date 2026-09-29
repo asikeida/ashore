@@ -36,4 +36,7 @@ public interface MeService {
 
     /** 上传文章配图：校验（类型/≤5MB）→ 上传；不落库（URL 由编辑器写入正文 Markdown） */
     String uploadPostImage(Long userId, org.springframework.web.multipart.MultipartFile file);
+
+    /** AI 助手记录：按面经分组（轮数/最近时间/最后一条消息），最近活跃在前 */
+    List<me.asikeida.ashore.api.vo.profile.AssistantRecordVo> assistantRecords(Long userId);
 }
