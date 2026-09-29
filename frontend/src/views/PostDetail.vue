@@ -14,7 +14,7 @@ import {
   type CommentItem,
   type PostDetail,
 } from '../api/post'
-import { assistantStream, type ChatMessage } from '../api/assistant'
+import { assistantStream, assistantHistory, uploadChatImage, type ChatMessage } from '../api/assistant'
 import { auth, refreshAuth } from '../stores/auth'
 
 const props = defineProps<{ id: string }>()
@@ -93,13 +93,55 @@ function scrollChat() {
   })
 }
 
+/** 聊天里发图：上传 MinIO → 以 Markdown 图片语法进消息（气泡渲染为图片） */
+async function onChatImage(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || chatting.value) {
+    input.value = ''
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.error('图片不能超过 5MB')
+    input.value = ''
+    return
+  }
+  chatting.value = true
+  try {
+    const url = await uploadChatImage(file)
+    chatInput.value = (chatInput.value ? chatInput.value + '\n' : '') + `![](${url})`
+    ElMessage.success('图片已就绪，输入你想问的问题后回车发送')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '图片上传失败')
+  } finally {
+    chatting.value = false
+    input.value = ''
+  }
+}
+
+/** 用户气泡渲染：图片语法转 <img>，其余按纯文本（消毒后输出） */
+function renderChatUser(text: string): string {
+  const withImg = text.replace(/!\[\]\(([^)]+)\)/g, '<img src="$1" style="max-width:100%;border-radius:8px;margin-top:6px">')
+  const safe = DOMPurify.sanitize(withImg)
+  return safe.replace(/\n/g, '<br>')
+}
+
 async function load() {
   try {
     post.value = await fetchPost(props.id)
     const page = await fetchComments(props.id, null)
     comments.value = page.items
     await buildToc()
-    // 助手开场白：告知已读本文（截前 120 字证明"读过"）
+    // 助手会话：有落库历史则回填，否则给开场白（历史加载失败不阻塞页面）
+    try {
+      const history = await assistantHistory(props.id)
+      if (history.length > 0) {
+        chat.value = history
+        return
+      }
+    } catch {
+      /* ignore */
+    }
     if (post.value.content) {
       chat.value.push({
         role: 'assistant',
@@ -314,10 +356,14 @@ onMounted(load)
             class="chat-row"
             :class="m.role === 'user' ? 'row-user' : 'row-assistant'"
           >
-            <div class="bubble">{{ m.content }}<span v-if="chatting && i === chat.length - 1 && m.role === 'assistant'" class="cursor">▌</span></div>
+            <div class="bubble" v-html="m.role === 'assistant' ? render(m.content) : renderChatUser(m.content)"></div>
           </div>
         </div>
         <div class="chat-input">
+          <label class="chat-img-btn" title="发图片给助手（它会看到图片链接并尝试结合上下文回答）">
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden :disabled="chatting" @change="onChatImage" />
+            🖼
+          </label>
           <el-input
             v-model="chatInput"
             placeholder="问问这篇文章…（Enter 发送）"

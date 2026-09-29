@@ -13,13 +13,15 @@ import {
   type MeFootItem,
   type MeInterviewItem,
 } from '../api/me'
+import { fetchAssistantRecords, type AssistantRecordItem } from '../api/assistant'
 import { auth } from '../stores/auth'
 
-const activeTab = ref<'articles' | 'collects' | 'praises' | 'interviews'>('articles')
+const activeTab = ref<'articles' | 'collects' | 'praises' | 'interviews' | 'assistant'>('articles')
 const myArticles = ref<MeArticleItem[]>([])
 const collects = ref<MeFootItem[]>([])
 const praises = ref<MeFootItem[]>([])
 const interviews = ref<MeInterviewItem[]>([])
+const assistantRecords = ref<AssistantRecordItem[]>([])
 const loading = ref(false)
 const router = useRouter()
 const avatarUrl = ref<string | null>(null)
@@ -64,6 +66,7 @@ async function loadAll() {
     collects.value = await fetchMyCollects()
     praises.value = await fetchMyPraises()
     interviews.value = await fetchMyInterviews()
+    assistantRecords.value = await fetchAssistantRecords()
   } finally {
     loading.value = false
   }
@@ -126,6 +129,25 @@ onMounted(loadAll)
               <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
             </el-table-column>
           </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane label="AI 助手记录" name="assistant">
+          <el-empty
+            v-if="assistantRecords.length === 0 && !loading"
+            :image-size="72"
+            description="还没有和 AI 助手聊过——去任意面经详情页右侧试试"
+          />
+          <article
+            v-for="rec in assistantRecords"
+            :key="rec.articleId"
+            class="panel panel-hover foot-card"
+          >
+            <RouterLink :to="`/posts/${rec.articleId}`" class="item-title">{{ rec.articleTitle }}</RouterLink>
+            <div class="muted meta-row">
+              {{ rec.turns }} 条消息 · 最近 {{ formatTime(rec.lastTime) }}
+            </div>
+            <div class="muted" style="font-size: 13px">{{ rec.lastContent }}</div>
+          </article>
         </el-tab-pane>
 
         <el-tab-pane label="我的收藏" name="collects">
