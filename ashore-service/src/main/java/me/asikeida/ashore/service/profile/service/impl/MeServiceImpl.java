@@ -45,6 +45,8 @@ public class MeServiceImpl implements MeService {
 
     private final me.asikeida.ashore.service.user.repository.mapper.UserMapper userMapper;
 
+    private final me.asikeida.ashore.service.interact.repository.mapper.AssistantMessageMapper assistantMessageMapper;
+
     /** 上传业务限额（MB），来自 ashore.upload 配置——业务分闸，multipart 总闸须 ≥ 此值 */
     private final int avatarMaxMb;
 

@@ -14,7 +14,7 @@ class DetectExtTests {
 
     private String detect(byte[] data) throws Exception {
         MeServiceImpl service = new MeServiceImpl(
-                null, null, null, null, null, null, null, 2, 5);
+                null, null, null, null, null, null, null, null, 2, 5);
         Method m = MeServiceImpl.class.getDeclaredMethod("detectExt", byte[].class);
         m.setAccessible(true);
         return (String) m.invoke(service, (Object) data);
