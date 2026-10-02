@@ -58,7 +58,9 @@ public class NotifyServiceImpl implements NotifyService {
                         (a, b) -> a, HashMap::new));
 
         return rows.stream().map(row -> new NoticeItemVo(
-                        String.valueOf(row.getId()), row.getType(), row.getArticleId(), row.getCommentId(),
+                        String.valueOf(row.getId()), row.getType(),
+                        row.getArticleId() == null ? null : String.valueOf(row.getArticleId()),
+                        row.getCommentId() == null ? null : String.valueOf(row.getCommentId()),
                         nicknames.getOrDefault(row.getOperatorId(), "岸友"), row.getContent(),
                         row.getReadStat() == 1,
                         row.getCreateTime() == null ? null : row.getCreateTime().toString()))

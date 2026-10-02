@@ -265,8 +265,8 @@ onMounted(load)
         <article class="panel">
           <h1 class="post-title">{{ post.title }}</h1>
           <div class="muted meta-row">
-            <el-avatar :size="24" class="author-avatar">{{ (post.authorId ?? '匿名')[0] }}</el-avatar>
-            <span>{{ post.authorId }}</span>
+            <el-avatar :size="24" class="author-avatar">{{ (post.authorNickname ?? post.authorId ?? '匿名')[0] }}</el-avatar>
+            <RouterLink :to="`/user/${post.authorId}`" class="author-link">{{ post.authorNickname ?? post.authorId }}</RouterLink>
             <el-divider direction="vertical" />
             <span>{{ formatTime(post.createTime) }}</span>
             <el-divider direction="vertical" />
@@ -343,7 +343,7 @@ onMounted(load)
           <div v-for="comment in comments" :key="comment.id" class="comment">
             <div class="comment-head">
               <el-avatar :size="26" class="author-avatar">{{ comment.nickname[0] }}</el-avatar>
-              <strong>{{ comment.nickname }}</strong>
+              <RouterLink :to="`/user/${comment.userId}`" class="author-link"><strong>{{ comment.nickname }}</strong></RouterLink>
               <span class="muted">{{ formatTime(comment.createTime) }}</span>
               <button
                 v-if="auth.loggedIn"
@@ -361,7 +361,7 @@ onMounted(load)
             <div v-for="reply in comment.replies" :key="reply.id" class="reply">
               <div class="comment-head">
                 <el-avatar :size="22" class="author-avatar">{{ reply.nickname[0] }}</el-avatar>
-                <strong>{{ reply.nickname }}</strong>
+                <RouterLink :to="`/user/${reply.userId}`" class="author-link"><strong>{{ reply.nickname }}</strong></RouterLink>
                 <span v-if="reply.replyNickname" class="muted">回复 @{{ reply.replyNickname }}</span>
                 <button
                   v-if="auth.loggedIn"
@@ -684,6 +684,17 @@ onMounted(load)
   color: var(--el-color-primary-dark-2);
   font-weight: 700;
   font-size: 13px;
+}
+
+.author-link {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.author-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
 }
 
 .tag-row {

@@ -181,10 +181,12 @@ public class ArticleServiceImpl implements ArticleService {
         ArticleDetailDO latest = latestDetail(articleId);
         me.asikeida.ashore.service.interact.service.CountService.Counts counts = countService.counts(articleId);
         incrReadQuietly(articleId, operator);
+        Map<Long, String> nick = nicknamesByAuthor(List.of(article.getAuthorId()));
         return new PostDetailVo(String.valueOf(article.getId()), article.getTitle(), article.getStatus(),
                 tagNames(articleId), latest == null ? null : latest.getContent(),
                 latest == null ? null : latest.getVersion(),
                 String.valueOf(article.getAuthorId()),
+                nick.getOrDefault(article.getAuthorId(), "岸友"),
                 article.getCreateTime() == null ? null : article.getCreateTime().toString(),
                 counts.praise(), counts.collect(), counts.comment(), counts.read(),
                 operator != null && isActiveFoot(articleId, FootTypeEnum.PRAISE, operator.userId()),

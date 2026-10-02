@@ -19,6 +19,7 @@ export interface PostDetail {
   content: string | null
   version: number | null
   authorId: string
+  authorNickname: string
   createTime: string
   praiseCount: number
   collectCount: number
