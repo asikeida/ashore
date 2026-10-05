@@ -14,6 +14,7 @@ import {
   type AdminPostItem,
   type AdminUserItem,
 } from '../api/admin'
+import { fetchReports, handleReport, type ReportItem } from '../api/report'
 
 // ── 面经审核 tab ──────────────────────────────────────────────
 const posts = ref<AdminPostItem[]>([])
@@ -125,15 +126,71 @@ function formatTime(time: string): string {
   return time.replace('T', ' ').slice(0, 16)
 }
 
-const activeTab = ref<'posts' | 'users'>('posts')
+const activeTab = ref<'posts' | 'users' | 'reports'>('posts')
 
-onMounted(loadPosts)
+// ── 举报处理 tab ──────────────────────────────────────────────
+const reports = ref<ReportItem[]>([])
+const reportFilter = ref<'PENDING' | 'RESOLVED' | 'DISMISSED' | ''>('PENDING')
+const reportsLoading = ref(false)
+const actingReportId = ref<string | null>(null)
+
+const REPORT_STATUS_META: Record<string, { label: string; type: 'warning' | 'success' | 'info' }> = {
+  PENDING: { label: '待处理', type: 'warning' },
+  RESOLVED: { label: '已处置', type: 'success' },
+  DISMISSED: { label: '已驳回', type: 'info' },
+}
+
+async function loadReports() {
+  reportsLoading.value = true
+  try {
+    reports.value = await fetchReports(reportFilter.value || undefined)
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '加载失败')
+  } finally {
+    reportsLoading.value = false
+  }
+}
+
+async function onReportTabEnter() {
+  if (reports.value.length === 0) await loadReports()
+}
+
+async function actOnReport(row: ReportItem, action: 'DISMISS' | 'OFFLINE') {
+  const verb = action === 'OFFLINE' ? '处置内容（文章下线/评论删除）' : '驳回（标记误报）'
+  try {
+    await ElMessageBox.confirm(`确认${verb}？`, '处理举报', {
+      confirmButtonText: '确认',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+  actingReportId.value = row.id
+  try {
+    await handleReport(row.id, action)
+    ElMessage.success('已处理')
+    await loadReports()
+  } catch (e) {
+    ElMessage.error(e instanceof ApiError ? e.message : '操作失败')
+  } finally {
+    actingReportId.value = null
+  }
+}
+
+function onTabChange(tab: { paneName: string }) {
+  if (tab.paneName === 'reports') onReportTabEnter()
+}
+
+onMounted(() => {
+  loadPosts()
+})
 </script>
 
 <template>
   <div class="container-wide">
     <div class="panel">
-      <el-tabs v-model="activeTab">
+      <el-tabs v-model="activeTab" @tab-change="onTabChange">
         <el-tab-pane label="面经审核" name="posts">
           <div class="admin-head">
             <el-radio-group v-model="postFilter" @change="loadPosts">
@@ -263,6 +320,48 @@ onMounted(loadPosts)
                 >
                   解封
                 </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane label="举报处理" name="reports" lazy>
+          <div class="admin-head">
+            <el-radio-group v-model="reportFilter" @change="loadReports">
+              <el-radio-button value="PENDING">待处理</el-radio-button>
+              <el-radio-button value="RESOLVED">已处置</el-radio-button>
+              <el-radio-button value="DISMISSED">已驳回</el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <el-table v-loading="reportsLoading" :data="reports" style="width: 100%" empty-text="没有符合条件的举报">
+            <el-table-column label="目标" min-width="200">
+              <template #default="{ row }">
+                <el-tag :type="row.targetType === 'ARTICLE' ? 'primary' : 'info'" size="small" effect="light" round style="margin-right: 6px">
+                  {{ row.targetType === 'ARTICLE' ? '面经' : '评论' }}
+                </el-tag>{{ row.targetPreview }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="reason" label="举报理由" min-width="180" />
+            <el-table-column prop="reporterNickname" label="举报人" width="120" />
+            <el-table-column label="状态" width="90" align="center">
+              <template #default="{ row }">
+                <el-tag :type="REPORT_STATUS_META[row.status]?.type ?? 'info'" size="small" round>
+                  {{ REPORT_STATUS_META[row.status]?.label ?? row.status }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="170" align="center">
+              <template #default="{ row }">
+                <template v-if="row.status === 'PENDING'">
+                  <el-button type="danger" size="small" :loading="actingReportId === row.id" @click="actOnReport(row, 'OFFLINE')">
+                    处置内容
+                  </el-button>
+                  <el-button size="small" :loading="actingReportId === row.id" @click="actOnReport(row, 'DISMISS')">
+                    驳回
+                  </el-button>
+                </template>
+                <span v-else class="muted">已处理</span>
               </template>
             </el-table-column>
           </el-table>
