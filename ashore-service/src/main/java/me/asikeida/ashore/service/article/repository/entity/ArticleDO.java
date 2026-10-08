@@ -27,6 +27,9 @@ public class ArticleDO {
     /** 状态列值 = {@link me.asikeida.ashore.api.enums.ArticleStatus} name() */
     private String status;
 
+    /** 纯文本摘要（发布/编辑时生成，列表卡片展示）；NULL = 旧数据未生成 */
+    private String excerpt;
+
     /** 置顶：1 是 / 0 否（列表排序第一键） */
     private Integer toppingStat;
 

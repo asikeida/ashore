@@ -106,6 +106,7 @@ public class ArticleServiceImpl implements ArticleService {
         article.setAuthorId(author.userId());
         // 审核制：所有人发文进 REVIEW（无白名单，简化 paicoding 逻辑）
         article.setStatus(ArticleStatus.REVIEW.name());
+        article.setExcerpt(excerptOf(req.content()));
         article.setToppingStat(0);
         article.setDeleted(0);
         articleMapper.insert(article);
@@ -129,6 +130,7 @@ public class ArticleServiceImpl implements ArticleService {
         insertDetail(articleId, req.content(), nextVersion);
 
         article.setTitle(req.title().trim());
+        article.setExcerpt(excerptOf(req.content()));
         // 已上线内容编辑后回审核（状态机矩阵内聚在枚举）
         ArticleStatus current = ArticleStatus.of(article.getStatus());
         if (current.canTransitionTo(ArticleStatus.REVIEW) && current != ArticleStatus.REVIEW) {
@@ -287,13 +289,22 @@ public class ArticleServiceImpl implements ArticleService {
         Map<Long, List<String>> tagsByArticle = tagsByArticle(articleIds);
         Map<Long, String> nicknameByAuthor = nicknamesByAuthor(
                 articles.stream().map(ArticleDO::getAuthorId).distinct().toList());
+        Map<Long, me.asikeida.ashore.service.interact.repository.entity.ArticleCountDO> countByArticle =
+                countsByArticle(articleIds);
 
         List<PostItemVo> items = articles.stream()
-                .map(a -> new PostItemVo(String.valueOf(a.getId()), a.getTitle(),
-                        tagsByArticle.getOrDefault(a.getId(), List.of()),
-                        nicknameByAuthor.get(a.getAuthorId()),
-                        a.getCreateTime() == null ? null : a.getCreateTime().toString(),
-                        a.getToppingStat() != null && a.getToppingStat() == 1))
+                .map(a -> {
+                    var c = countByArticle.get(a.getId());
+                    return new PostItemVo(String.valueOf(a.getId()), a.getTitle(),
+                            tagsByArticle.getOrDefault(a.getId(), List.of()),
+                            nicknameByAuthor.get(a.getAuthorId()),
+                            a.getCreateTime() == null ? null : a.getCreateTime().toString(),
+                            a.getToppingStat() != null && a.getToppingStat() == 1,
+                            a.getExcerpt(),
+                            c == null || c.getReadCount() == null ? 0 : c.getReadCount(),
+                            c == null || c.getPraiseCount() == null ? 0 : c.getPraiseCount(),
+                            c == null || c.getCommentCount() == null ? 0 : c.getCommentCount());
+                })
                 .toList();
 
         String nextCursor = articles.size() == pageSize ? toCursor(articles.get(articles.size() - 1)) : null;
@@ -443,12 +454,21 @@ public class ArticleServiceImpl implements ArticleService {
         Map<Long, List<String>> tagsByArticle = tagsByArticle(articleIds);
         Map<Long, String> nicknameByAuthor = nicknamesByAuthor(
                 articles.stream().map(ArticleDO::getAuthorId).distinct().toList());
+        Map<Long, me.asikeida.ashore.service.interact.repository.entity.ArticleCountDO> countByArticle =
+                countsByArticle(articleIds);
         return articles.stream()
-                .map(a -> AdminPostItemVo.of(new PostItemVo(String.valueOf(a.getId()), a.getTitle(),
-                        tagsByArticle.getOrDefault(a.getId(), List.of()),
-                        nicknameByAuthor.getOrDefault(a.getAuthorId(), "岸友"),
-                        a.getCreateTime() == null ? null : a.getCreateTime().toString(),
-                        a.getToppingStat() != null && a.getToppingStat() == 1), a.getStatus()))
+                .map(a -> {
+                    var c = countByArticle.get(a.getId());
+                    return AdminPostItemVo.of(new PostItemVo(String.valueOf(a.getId()), a.getTitle(),
+                            tagsByArticle.getOrDefault(a.getId(), List.of()),
+                            nicknameByAuthor.getOrDefault(a.getAuthorId(), "岸友"),
+                            a.getCreateTime() == null ? null : a.getCreateTime().toString(),
+                            a.getToppingStat() != null && a.getToppingStat() == 1,
+                            a.getExcerpt(),
+                            c == null || c.getReadCount() == null ? 0 : c.getReadCount(),
+                            c == null || c.getPraiseCount() == null ? 0 : c.getPraiseCount(),
+                            c == null || c.getCommentCount() == null ? 0 : c.getCommentCount()), a.getStatus());
+                })
                 .toList();
     }
 
@@ -516,12 +536,21 @@ public class ArticleServiceImpl implements ArticleService {
         Map<Long, List<String>> tagsByArticle = tagsByArticle(ids);
         Map<Long, String> nicknameByAuthor = nicknamesByAuthor(
                 articles.stream().map(ArticleDO::getAuthorId).distinct().toList());
+        Map<Long, me.asikeida.ashore.service.interact.repository.entity.ArticleCountDO> countByArticle =
+                countsByArticle(ids);
         return articles.stream()
-                .map(a -> new PostItemVo(String.valueOf(a.getId()), a.getTitle(),
-                        tagsByArticle.getOrDefault(a.getId(), List.of()),
-                        nicknameByAuthor.getOrDefault(a.getAuthorId(), "岸友"),
-                        a.getCreateTime() == null ? null : a.getCreateTime().toString(),
-                        a.getToppingStat() != null && a.getToppingStat() == 1))
+                .map(a -> {
+                    var c = countByArticle.get(a.getId());
+                    return new PostItemVo(String.valueOf(a.getId()), a.getTitle(),
+                            tagsByArticle.getOrDefault(a.getId(), List.of()),
+                            nicknameByAuthor.getOrDefault(a.getAuthorId(), "岸友"),
+                            a.getCreateTime() == null ? null : a.getCreateTime().toString(),
+                            a.getToppingStat() != null && a.getToppingStat() == 1,
+                            a.getExcerpt(),
+                            c == null || c.getReadCount() == null ? 0 : c.getReadCount(),
+                            c == null || c.getPraiseCount() == null ? 0 : c.getPraiseCount(),
+                            c == null || c.getCommentCount() == null ? 0 : c.getCommentCount());
+                })
                 .toList();
 }
 
@@ -564,6 +593,31 @@ public class ArticleServiceImpl implements ArticleService {
 
     private String toCursor(ArticleDO article) {
         return article.getToppingStat() + "_" + article.getCreateTime() + "_" + article.getId();
+    }
+
+    /** 正文 → 纯文本摘要：去 Markdown 常用符号与图片语法，压平空白，截 120 字 */
+    private String excerptOf(String content) {
+        if (content == null || content.isBlank()) {
+            return "";
+        }
+        String text = content
+                .replaceAll("!\\[[^\\]]*\\]\\([^)]*\\)", "")      // 图片
+                .replaceAll("\\[([^\\]]*)\\]\\([^)]*\\)", "$1")  // 链接保留文字
+                .replaceAll("[#*`>~_]", "")                       // 标记符
+                .replaceAll("\\s+", " ")
+                .trim();
+        return text.length() > 120 ? text.substring(0, 120) + "…" : text;
+    }
+
+    /** 批量取计数字典（article_count 聚合表；无行的文章视为 0） */
+    private Map<Long, me.asikeida.ashore.service.interact.repository.entity.ArticleCountDO> countsByArticle(
+            List<Long> articleIds) {
+        return countMapper.selectList(new LambdaQueryWrapper<me.asikeida.ashore.service.interact.repository.entity.ArticleCountDO>()
+                        .in(me.asikeida.ashore.service.interact.repository.entity.ArticleCountDO::getArticleId, articleIds))
+                .stream()
+                .collect(Collectors.toMap(
+                        me.asikeida.ashore.service.interact.repository.entity.ArticleCountDO::getArticleId,
+                        c -> c, (a, b) -> a));
     }
 
     /** 批量取标签：两次批量查询组装（避免逐条 N+1） */
