@@ -4,7 +4,7 @@ import { marked } from 'marked'
 import { nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ChatDotRound, Collection, Pointer, Promotion } from '@element-plus/icons-vue'
+import { ChatDotRound, Collection, Pointer, Promotion, WarningFilled } from '@element-plus/icons-vue'
 import {
   createComment,
   toggleCommentLike,
@@ -17,6 +17,7 @@ import {
 } from '../api/post'
 import { assistantStream, assistantHistory, uploadChatImage, type ChatMessage } from '../api/assistant'
 import { auth, refreshAuth } from '../stores/auth'
+import { submitReport } from '../api/report'
 
 const props = defineProps<{ id: string }>()
 
@@ -234,6 +235,41 @@ function startInterview() {
   router.push(`/posts/${props.id}/interview`)
 }
 
+// ── 举报 ─────────────────────────────────────────────────────
+async function reportArticle() {
+  try {
+    const { value } = await ElMessageBox.prompt('请填写举报理由（500 字内）', '举报这篇面经', {
+      confirmButtonText: '提交举报',
+      cancelButtonText: '取消',
+      inputPattern: /^.{1,500}$/,
+      inputErrorMessage: '理由不能为空且不超过 500 字',
+    })
+    await submitReport('ARTICLE', props.id, value.trim())
+    ElMessage.success('举报已提交，管理员将尽快处理')
+  } catch (err) {
+    if (err !== 'cancel' && err !== 'close') {
+      ElMessage.error(err instanceof Error ? err.message : '提交失败')
+    }
+  }
+}
+
+async function reportComment(commentId: string) {
+  try {
+    const { value } = await ElMessageBox.prompt('请填写举报理由（500 字内）', '举报该评论', {
+      confirmButtonText: '提交举报',
+      cancelButtonText: '取消',
+      inputPattern: /^.{1,500}$/,
+      inputErrorMessage: '理由不能为空且不超过 500 字',
+    })
+    await submitReport('COMMENT', commentId, value.trim())
+    ElMessage.success('举报已提交，管理员将尽快处理')
+  } catch (err) {
+    if (err !== 'cancel' && err !== 'close') {
+      ElMessage.error(err instanceof Error ? err.message : '提交失败')
+    }
+  }
+}
+
 function formatTime(time: string): string {
   return time.replace('T', ' ').slice(0, 16)
 }
@@ -303,6 +339,14 @@ onMounted(load)
             >
               AI 面试官
             </el-button>
+            <el-button
+              v-if="auth.loggedIn"
+              :icon="WarningFilled"
+              round
+              @click="reportArticle"
+            >
+              举报
+            </el-button>
           </div>
         </article>
 
@@ -356,6 +400,12 @@ onMounted(load)
                 :class="{ on: comment.liked }"
                 @click="likeComment(comment.id)"
               >👍 {{ comment.likeCount > 0 ? comment.likeCount : '' }}</button>
+              <button
+                v-if="auth.loggedIn"
+                class="reply-btn"
+                style="color: var(--el-text-color-secondary)"
+                @click="reportComment(comment.id)"
+              >举报</button>
             </div>
             <div class="comment-body">{{ comment.content }}</div>
             <div v-for="reply in comment.replies" :key="reply.id" class="reply">
@@ -374,6 +424,12 @@ onMounted(load)
                   :class="{ on: reply.liked }"
                   @click="likeComment(reply.id)"
                 >👍 {{ reply.likeCount > 0 ? reply.likeCount : '' }}</button>
+                <button
+                  v-if="auth.loggedIn"
+                  class="reply-btn"
+                  style="color: var(--el-text-color-secondary)"
+                  @click="reportComment(reply.id)"
+                >举报</button>
               </div>
               <div class="comment-body">{{ reply.content }}</div>
             </div>
