@@ -1,28 +1,28 @@
 /* ============================================================
    Ashore 设计系统（Element Plus 主题定制 + 全局排版）
-   主题意象：上岸 = 海岸/青碧。主色 teal，克制用色 + 大留白。
+   主题：暖纸色、深蓝文字与陶土橙强调。
    ============================================================ */
 
 /* Element Plus 主题令牌覆盖（light）：主色与派生色阶、圆角、字体 */
 :root {
-  --el-color-primary: #0f766e;
-  --el-color-primary-dark-2: #0c5e58;
-  --el-color-primary-light-3: #579f9a;
-  --el-color-primary-light-5: #87bbb7;
-  --el-color-primary-light-7: #b7d6d4;
-  --el-color-primary-light-8: #cfe4e2;
-  --el-color-primary-light-9: #e7f1f1;
+  --el-color-primary: #c55d3c;
+  --el-color-primary-dark-2: #a8482c;
+  --el-color-primary-light-3: #d9896e;
+  --el-color-primary-light-5: #e4a994;
+  --el-color-primary-light-7: #f1d3c5;
+  --el-color-primary-light-8: #f6e2d8;
+  --el-color-primary-light-9: #f9ece6;
   --el-border-radius-base: 8px;
   --el-font-family: 'Inter', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', sans-serif;
 
   /* 项目自有令牌（非 EP 组件使用） */
-  --bg: #f6f8f8;
+  --bg: #f7f4ef;
   --card: #ffffff;
-  --border: #e5e9eb;
-  --text: #1f2937;
-  --muted: #6b7280;
-  --accent: #0f766e;
+  --border: #e6e0d8;
+  --text: #28344d;
+  --muted: #747987;
+  --accent: #c55d3c;
   --shadow-card: 0 1px 2px rgba(16, 38, 36, 0.05), 0 4px 16px rgba(16, 38, 36, 0.06);
   --shadow-card-hover: 0 2px 6px rgba(16, 38, 36, 0.08), 0 10px 28px rgba(16, 38, 36, 0.1);
 }
@@ -35,7 +35,7 @@ body {
   margin: 0;
   font-family: var(--el-font-family);
   background:
-    radial-gradient(1200px 400px at 50% -120px, rgba(15, 118, 110, 0.07), transparent 60%),
+    radial-gradient(1200px 400px at 50% -120px, rgba(197, 93, 60, 0.025), transparent 60%),
     var(--bg);
   background-attachment: fixed;
   color: var(--text);
@@ -61,7 +61,7 @@ body {
 }
 
 .container-wide {
-  max-width: 1020px;
+  max-width: 1190px;
   margin: 0 auto;
   padding: 24px 16px 40px;
 }
@@ -77,7 +77,7 @@ body {
 }
 
 .navbar-inner {
-  max-width: 1020px;
+  max-width: 1190px;
   margin: 0 auto;
   padding: 0 16px;
   height: 60px;

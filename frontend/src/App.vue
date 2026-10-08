@@ -1,317 +1,95 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { auth, refreshAuth, logout } from './stores/auth'
 import { fetchUnreadCount } from './api/community'
 import { ElConfigProvider } from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
-import { Bell, ChatDotRound, Document, EditPen, House, Setting, SwitchButton, User, UserFilled } from '@element-plus/icons-vue'
+import { Bell, EditPen, Search, UserFilled } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
 const unread = ref(0)
-// 左栏折叠态：点击汉堡切换（不随鼠标焦点），持久化到 localStorage
-const navCollapsed = ref(localStorage.getItem('ashore-nav-collapsed') === '1')
+const keyword = ref('')
+let pollTimer: ReturnType<typeof setInterval> | undefined
 
-function toggleNav() {
-  navCollapsed.value = !navCollapsed.value
-  localStorage.setItem('ashore-nav-collapsed', navCollapsed.value ? '1' : '0')
-}
+watch(() => route.query.q, q => { keyword.value = typeof q === 'string' ? q : '' }, { immediate: true })
 
 async function pollUnread() {
   if (!auth.loggedIn) return
-  try {
-    unread.value = await fetchUnreadCount()
-  } catch {
-    // 静默：徽标失败不影响主功能
-  }
+  try { unread.value = await fetchUnreadCount() } catch { /* 徽标失败不影响主功能 */ }
 }
 
 onMounted(async () => {
   await refreshAuth()
   await pollUnread()
-  // 60s 轮询未读数（轻量端点）；页面隐藏时浏览器会自动节流
-  setInterval(pollUnread, 60_000)
+  pollTimer = setInterval(pollUnread, 60_000)
 })
+onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
+
+function search() {
+  const q = keyword.value.trim()
+  router.push(q ? { path: '/', query: { q } } : { path: '/' })
+}
 
 async function handleLogout() {
   await logout()
+  unread.value = 0
   router.push('/')
-}
-
-/** 左栏条目：按登录态/角色过滤；active 随路由 */
-const navItems = [
-  { path: '/', label: '首页', icon: House, show: () => true, exact: true },
-  { path: '/write', label: '写面经', icon: EditPen, show: () => auth.loggedIn },
-  { path: '/profile', label: '个人主页', icon: User, show: () => auth.loggedIn },
-  { path: '/notices', label: '消息中心', icon: Bell, show: () => auth.loggedIn },
-  { path: '/admin', label: '管理台', icon: Setting, show: () => auth.loggedIn && auth.role === 'ADMIN' },
-]
-
-function isActive(path: string, exact: boolean) {
-  return exact ? route.path === path : route.path.startsWith(path)
 }
 </script>
 
 <template>
   <ElConfigProvider :locale="zhCn">
-    <!-- 顶栏：横贯全宽，汉堡在最左 -->
-    <header class="navbar">
-      <button class="burger" :title="navCollapsed ? '展开导航' : '收起导航'" @click="toggleNav">
-        <span class="burger-line"></span>
-        <span class="burger-line"></span>
-        <span class="burger-line"></span>
-      </button>
-      <RouterLink to="/" class="brand">
-        <span class="brand-anchor">⚓</span>
-        Ashore
-        <span class="brand-sub">上岸 · 面经社区</span>
-      </RouterLink>
-      <span class="nav-spacer"></span>
-      <nav class="nav-actions">
-        <template v-if="auth.loggedIn">
-          <el-badge :value="unread" :hidden="unread === 0" :max="99">
-            <RouterLink to="/notices" class="bell-link">
-              <el-button :icon="Bell" circle text />
-            </RouterLink>
-          </el-badge>
-          <RouterLink to="/write">
-            <el-button type="primary" :icon="EditPen" plain size="default">写面经</el-button>
-          </RouterLink>
-          <RouterLink v-if="auth.role === 'ADMIN'" to="/admin">
-            <el-button :icon="Document" text>管理台</el-button>
-          </RouterLink>
-          <el-dropdown trigger="click">
-            <span class="user-chip">
-              <el-icon><UserFilled /></el-icon>
-              {{ auth.account }}
-            </span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item :icon="User" @click="router.push('/profile')">个人主页</el-dropdown-item>
-                <el-dropdown-item divided :icon="SwitchButton" @click="handleLogout">退出登录</el-dropdown-item>
-              </el-dropdown-menu>
+    <div class="app-shell">
+      <header class="site-header">
+        <div class="header-inner">
+          <RouterLink to="/about" class="site-logo"><span class="logo-mark">◇</span>Ashore</RouterLink>
+          <nav class="primary-nav" aria-label="主导航">
+            <RouterLink to="/about" :class="{ active: route.path === '/about' }">项目介绍</RouterLink>
+            <RouterLink to="/" :class="{ active: route.path === '/' }">面经</RouterLink>
+          </nav>
+          <form class="header-search" role="search" @submit.prevent="search">
+            <el-icon><Search /></el-icon>
+            <input v-model="keyword" aria-label="搜索面经" placeholder="搜索面经标题或正文" />
+            <button type="submit" aria-label="搜索">↵</button>
+          </form>
+          <div class="header-actions">
+            <RouterLink to="/write" class="write-button"><el-icon><EditPen /></el-icon><span>写面经</span></RouterLink>
+            <template v-if="auth.loggedIn">
+              <RouterLink to="/notices" class="notice-link" aria-label="消息中心">
+                <el-badge :value="unread" :hidden="unread === 0" :max="99"><el-icon><Bell /></el-icon></el-badge>
+              </RouterLink>
+              <el-dropdown trigger="click">
+                <button class="account-button" type="button"><el-icon><UserFilled /></el-icon><span>{{ auth.account }}</span></button>
+                <template #dropdown><el-dropdown-menu>
+                  <el-dropdown-item @click="router.push('/profile')">个人中心</el-dropdown-item>
+                  <el-dropdown-item v-if="auth.role === 'ADMIN'" @click="router.push('/admin')">管理台</el-dropdown-item>
+                  <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
+                </el-dropdown-menu></template>
+              </el-dropdown>
             </template>
-          </el-dropdown>
-        </template>
-        <template v-else>
-          <RouterLink to="/login">
-            <el-button :icon="UserFilled" text>登录</el-button>
-          </RouterLink>
-          <RouterLink to="/register">
-            <el-button type="primary" :icon="ChatDotRound">注册</el-button>
-          </RouterLink>
-        </template>
-      </nav>
-    </header>
-
-    <!-- 下方：左栏 + 内容 -->
-    <div class="below">
-      <nav class="leftnav" :class="{ collapsed: navCollapsed }">
-        <RouterLink
-          v-for="item in navItems.filter(i => i.show())"
-          :key="item.path"
-          :to="item.path"
-          class="ln-item"
-          :class="{ active: isActive(item.path, item.exact) }"
-        >
-          <el-icon class="ico"><component :is="item.icon" /></el-icon>
-          <span class="lbl">{{ item.label }}</span>
-        </RouterLink>
-      </nav>
-
-      <main class="page-main">
-        <RouterView />
-      </main>
+            <template v-else>
+              <RouterLink to="/login" class="plain-link">登录</RouterLink>
+              <RouterLink to="/register" class="outline-link">注册</RouterLink>
+            </template>
+          </div>
+        </div>
+      </header>
+      <main class="page-main"><RouterView /></main>
+      <footer class="site-footer">Ashore 上岸 · 每一次复盘，都让下一次回答更好</footer>
     </div>
-
-    <footer class="footer">⚓ Every offer begins ashore. · Ashore 上岸</footer>
   </ElConfigProvider>
 </template>
 
 <style scoped>
-/* ── 汉堡按钮 ── */
-.burger {
-  width: 34px;
-  height: 34px;
-  border: none;
-  background: transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  margin-right: 2px;
-}
-
-.burger:hover {
-  background: #f0f3f7;
-}
-
-.burger-line {
-  width: 16px;
-  height: 2px;
-  background: var(--text);
-  border-radius: 2px;
-}
-
-/* ── 顶栏 ── */
-.navbar {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  height: 56px;
-  padding: 0 20px;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border);
-}
-
-.brand {
-  font-weight: 800;
-  font-size: 17px;
-  color: var(--text);
-  text-decoration: none;
-}
-
-.brand-anchor {
-  color: var(--accent);
-  margin-right: 4px;
-}
-
-.brand-sub {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 400;
-  margin-left: 4px;
-}
-
-.nav-spacer {
-  flex: 1;
-}
-
-.nav-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.nav-actions a {
-  text-decoration: none;
-}
-
-.bell-link {
-  text-decoration: none;
-  display: inline-flex;
-}
-
-.user-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  color: var(--text);
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--card);
-  outline: none;
-}
-
-.user-chip:hover {
-  border-color: var(--el-color-primary-light-5);
-  color: var(--accent);
-}
-
-/* ── 下方区域：左栏 + 内容 ── */
-.below {
-  display: flex;
-  align-items: stretch;
-}
-
-.leftnav {
-  width: 168px;
-  background: #fff;
-  border-right: 1px solid var(--border);
-  padding: 10px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  position: sticky;
-  top: 56px;
-  height: calc(100vh - 56px);
-  overflow: hidden;
-  flex-shrink: 0;
-  transition: width 0.2s ease;
-}
-
-.leftnav.collapsed {
-  width: 64px;
-}
-
-.ln-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 14px;
-  color: var(--text);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.ln-item .ico {
-  font-size: 17px;
-  flex-shrink: 0;
-}
-
-.ln-item.active {
-  background: var(--el-color-primary-light-9);
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.ln-item:hover:not(.active) {
-  background: #f5f7fa;
-}
-
-/* 折叠态：图标上、小字下（竖排） */
-.leftnav.collapsed .ln-item {
-  flex-direction: column;
-  gap: 3px;
-  padding: 9px 4px;
-  font-size: 11px;
-}
-
-.leftnav.collapsed .ln-item .ico {
-  font-size: 18px;
-}
-
-.page-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.footer {
-  text-align: center;
-  color: var(--muted);
-  font-size: 13px;
-  padding: 24px 0 30px;
-}
-
-@media (max-width: 900px) {
-  .leftnav {
-    display: none;
-  }
-  .burger {
-    display: none;
-  }
-}
+.app-shell{min-height:100vh;display:flex;flex-direction:column}.page-main{flex:1;min-width:0}
+.site-header{position:sticky;top:0;z-index:100;background:rgba(255,254,250,.96);border-bottom:1px solid var(--border);backdrop-filter:blur(12px)}
+.header-inner{max-width:1190px;min-height:68px;margin:auto;padding:0 22px;display:flex;align-items:center;gap:30px}
+.site-logo{font-size:23px;font-weight:800;letter-spacing:-.7px;color:var(--text);text-decoration:none;white-space:nowrap}.logo-mark{color:var(--accent);margin-right:8px}
+.primary-nav{display:flex;gap:26px;align-self:stretch;align-items:stretch}.primary-nav a{display:flex;align-items:center;color:var(--muted);text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent;padding-top:2px}.primary-nav a.active{color:var(--accent);border-color:var(--accent);font-weight:700}
+.header-search{height:38px;max-width:290px;min-width:160px;flex:1;margin-left:auto;padding:0 11px;display:flex;align-items:center;gap:8px;border:1px solid var(--border);background:#f5f1eb;border-radius:8px;color:var(--muted)}.header-search input{border:0;outline:0;background:transparent;color:var(--text);width:100%;min-width:0;font:inherit}.header-search button{border:0;background:none;color:var(--muted);cursor:pointer}
+.header-actions{display:flex;align-items:center;gap:14px;white-space:nowrap}.header-actions a{text-decoration:none}.write-button{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;background:var(--accent);color:white;border-radius:8px;font-size:13px;font-weight:700}.write-button:hover{background:var(--el-color-primary-dark-2)}.plain-link{color:var(--text)}.outline-link{border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 13px}.notice-link{font-size:19px;color:var(--muted)}.account-button{display:flex;align-items:center;gap:6px;border:0;background:none;color:var(--text);cursor:pointer}.site-footer{text-align:center;color:var(--muted);padding:24px;font-size:12px}
+@media(max-width:850px){.header-inner{flex-wrap:wrap;gap:0 18px;padding:11px 16px}.primary-nav{order:3;width:100%;height:38px;gap:24px}.header-search{order:4;max-width:none;flex-basis:100%;margin:5px 0 0}.header-actions{margin-left:auto}.account-button span{display:none}}
+@media(max-width:520px){.header-actions{gap:9px}.write-button{padding:8px}.write-button span{display:none}.outline-link{padding:6px 9px}.site-logo{font-size:20px}}
 </style>

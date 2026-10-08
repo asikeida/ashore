@@ -8,6 +8,10 @@ export interface PostItem {
   authorNickname: string
   createTime: string
   topped?: boolean
+  excerpt: string | null
+  read: number
+  praise: number
+  comment: number
 }
 
 /** 面经详情 */
@@ -46,6 +50,7 @@ export interface CommentItem {
   liked: boolean
   replies: {
     id: string
+    userId: string
     nickname: string
     content: string
     replyNickname: string | null
