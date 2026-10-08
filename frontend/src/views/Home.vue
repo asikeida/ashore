@@ -62,6 +62,16 @@ async function runSearch(q: string) {
 
 function clearSearch() { router.push('/') }
 function formatTime(time: string) { return time.replace('T', ' ').slice(0, 16) }
+function displayExcerpt(excerpt: string | null) {
+  if (!excerpt) return ''
+  return excerpt
+    .replace(/!\[[^\]]*\]\([^)]*(?:\)|$)/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/(^|\s)#{1,6}\s/g, ' ')
+    .replace(/[*_`>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 
 watch(() => route.query.q, q => { void runSearch(typeof q === 'string' ? q.trim() : '') }, { immediate: true })
 onMounted(() => { void loadMore(); void loadSidebar() })
@@ -104,7 +114,7 @@ onMounted(() => { void loadMore(); void loadSidebar() })
           <article v-for="item in items" :key="item.id" class="post-row">
             <div class="post-row-meta">{{ item.authorNickname }} · {{ formatTime(item.createTime) }}</div>
             <RouterLink :to="`/posts/${item.id}`" class="post-title">{{ item.title }}</RouterLink>
-            <p v-if="item.excerpt" class="post-excerpt">{{ item.excerpt }}</p>
+            <p v-if="displayExcerpt(item.excerpt)" class="post-excerpt">{{ displayExcerpt(item.excerpt) }}</p>
             <div class="post-bottom"><div class="post-tags"><span v-for="tag in item.tags.slice(0, 3)" :key="tag">{{ tag }}</span></div>
               <div class="post-stats">{{ item.read }} 阅读 · {{ item.praise }} 赞 · {{ item.comment }} 评论</div></div>
           </article>
