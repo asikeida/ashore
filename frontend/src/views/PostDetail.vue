@@ -484,6 +484,11 @@ onMounted(load)
   align-items: start;
 }
 
+.detail-main,
+.ai-panel {
+  min-width: 0;
+}
+
 .detail-layout.has-toc {
   grid-template-columns: 190px minmax(0, 1fr) 300px;
 }
@@ -500,7 +505,7 @@ onMounted(load)
 @media (max-width: 1000px) {
   .detail-layout,
   .detail-layout.has-toc {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .ai-panel {
     position: static;
@@ -647,6 +652,10 @@ onMounted(load)
   margin-top: 10px;
 }
 
+.chat-input :deep(.el-input) {
+  min-width: 0;
+}
+
 /* 正文排版 */
 .post-content {
   line-height: 1.85;
@@ -768,6 +777,7 @@ onMounted(load)
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
   margin-top: 20px;
 }
 
