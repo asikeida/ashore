@@ -19,6 +19,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class AuthServiceImpl implements AuthService {
 
+    private static final String GUEST_ACCOUNT = "guest";
+    private static final String GUEST_PASSWORD_MARKER = "guest-login-only";
+
     private final UserMapper userMapper;
 
     private final PasswordEncoder passwordEncoder;
@@ -34,6 +37,9 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public UserVo register(RegisterReq req) {
+        if (GUEST_ACCOUNT.equalsIgnoreCase(req.account())) {
+            throw ExceptionUtil.of(StatusEnum.ACCOUNT_EXISTS);
+        }
         Long exists = userMapper.selectCount(new LambdaQueryWrapper<UserDO>()
                 .eq(UserDO::getAccount, req.account()));
         if (exists > 0) {
@@ -77,6 +83,34 @@ public class AuthServiceImpl implements AuthService {
         }
 
         loginAuditService.record(user.getId(), req.account(), true, null);
+        return UserConverter.toVo(user);
+    }
+
+    @Override
+    public UserVo guestLogin() {
+        UserDO user = userMapper.selectOne(new LambdaQueryWrapper<UserDO>()
+                .eq(UserDO::getAccount, GUEST_ACCOUNT));
+        if (user == null) {
+            UserDO guest = new UserDO();
+            guest.setAccount(GUEST_ACCOUNT);
+            guest.setNickname("游客");
+            guest.setPasswordHash(GUEST_PASSWORD_MARKER);
+            guest.setRole(UserDO.ROLE_USER);
+            guest.setStatus(UserDO.STATUS_ACTIVE);
+            try {
+                userMapper.insert(guest);
+                user = guest;
+            } catch (DuplicateKeyException e) {
+                user = userMapper.selectOne(new LambdaQueryWrapper<UserDO>()
+                        .eq(UserDO::getAccount, GUEST_ACCOUNT));
+            }
+        }
+        if (user == null || !GUEST_PASSWORD_MARKER.equals(user.getPasswordHash())
+                || !UserDO.STATUS_ACTIVE.equals(user.getStatus())
+                || !UserDO.ROLE_USER.equals(user.getRole())) {
+            throw ExceptionUtil.of(StatusEnum.LOGIN_FAILED);
+        }
+        loginAuditService.record(user.getId(), GUEST_ACCOUNT, true, null);
         return UserConverter.toVo(user);
     }
 

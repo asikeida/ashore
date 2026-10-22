@@ -27,6 +27,10 @@ export JAVA_HOME=/c/Users/guowe/scoop/apps/temurin21-jdk/current
 curl http://127.0.0.1:8080/api/ping
 ```
 
+登录页支持账号密码和共享游客登录。游客使用数据库中持久化的 `guest` 普通用户，所有游客共用消息、收藏和互动记录，请勿在游客身份下填写私人信息。
+
+`POST /api/v1/auth/guest-login` 会为首次访问创建该账号，后续访问复用，并签发与普通登录相同的会话 Cookie。`guest` 账号名不开放注册。
+
 ## 路线图
 
 - [x] M0 工程骨架（含 MyBatis-Plus × Spring Boot 版本决策，见 docs/开发规划/01）

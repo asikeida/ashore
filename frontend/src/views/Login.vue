@@ -10,6 +10,7 @@ const account = ref('')
 const password = ref('')
 const error = ref('')
 const loading = ref(false)
+const guestLoading = ref(false)
 const route = useRoute()
 const router = useRouter()
 
@@ -37,6 +38,23 @@ async function submit() {
     error.value = e instanceof ApiError ? e.message : '登录失败，请稍后重试'
   } finally {
     loading.value = false
+  }
+}
+
+async function loginAsGuest() {
+  error.value = ''
+  guestLoading.value = true
+  try {
+    const response = await fetch('/api/v1/auth/guest-login', { method: 'POST' })
+    const body = await response.json()
+    if (body.status?.code !== 0) throw new ApiError(body.status?.code, body.status?.msg)
+    await refreshAuth()
+    ElMessage.success('已以游客身份登录')
+    router.push((route.query.redirect as string) ?? '/')
+  } catch (e) {
+    error.value = e instanceof ApiError ? e.message : '游客登录失败，请稍后重试'
+  } finally {
+    guestLoading.value = false
   }
 }
 </script>
@@ -84,6 +102,10 @@ async function submit() {
       >
         {{ loading ? '登录中…' : '登 录' }}
       </el-button>
+      <el-button class="guest-button" size="large" :loading="guestLoading" :disabled="loading" @click="loginAsGuest">
+        {{ guestLoading ? '登录中…' : '以游客身份登录' }}
+      </el-button>
+      <p class="guest-note">游客共用一个账号，消息、收藏和互动记录会对其他游客可见。</p>
       <p class="muted" style="text-align: center; margin-top: 14px">
         没有账号？<RouterLink to="/register" class="text-link">去注册</RouterLink>
       </p>
@@ -118,6 +140,8 @@ async function submit() {
 .auth-panel .el-input {
   margin-bottom: 14px;
 }
+.guest-button { width: 100%; margin: 12px 0 0; }
+.guest-note { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 10px 0 0; }
 
 .text-link {
   color: var(--accent);

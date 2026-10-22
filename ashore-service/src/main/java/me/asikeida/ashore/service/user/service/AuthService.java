@@ -14,4 +14,7 @@ public interface AuthService {
 
     /** 登录：校验凭证，失败统一抛 LOGIN_FAILED（模糊文案防账号枚举） */
     UserVo login(LoginReq req);
+
+    /** 登录共享的持久化游客账号。 */
+    UserVo guestLogin();
 }
