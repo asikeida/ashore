@@ -1,49 +1,28 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { Search } from '@element-plus/icons-vue'
-import {
-  fetchPosts,
-  searchPosts,
-  type PostItem,
-  type SearchItem,
-} from '../api/post'
-import {
-  fetchDailyRank,
-  fetchHotPosts,
-  type HotPostItem,
-  type RankItem,
-} from '../api/community'
+import { onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { fetchPosts, searchPosts, type PostItem, type SearchItem } from '../api/post'
+import { fetchDailyRank, fetchHotPosts, type HotPostItem, type RankItem } from '../api/community'
 
+const route = useRoute()
+const router = useRouter()
 const items = ref<PostItem[]>([])
+const pinned = ref<PostItem[]>([])
 const cursor = ref<string | null>(null)
 const loading = ref(false)
 const finished = ref(false)
-const firstPageLoaded = ref(false)
-
-const keyword = ref('')
 const searchResults = ref<SearchItem[] | null>(null)
 const searchLoading = ref(false)
-
-// ── 置顶横滑卡组：首页第一页中的 topped 文章 ────────────────────
-const pinned = computed(() =>
-  firstPageLoaded.value ? items.value.filter(i => i.topped) : [],
-)
-
-// ── 侧栏：热榜 + 活跃榜（上下平铺，无 tab）────────────────────
+const searchError = ref(false)
 const hotPosts = ref<HotPostItem[]>([])
 const dailyRank = ref<RankItem[]>([])
+const keyword = ref('')
 
 async function loadSidebar() {
-  try {
-    hotPosts.value = await fetchHotPosts(8)
-  } catch {
-    // 侧栏数据失败静默，不打断主列表
-  }
-  try {
-    dailyRank.value = await fetchDailyRank(8)
-  } catch {
-    // 同上
-  }
+  const [hot, rank] = await Promise.allSettled([fetchHotPosts(8), fetchDailyRank(8)])
+  if (hot.status === 'fulfilled') hotPosts.value = hot.value
+  if (rank.status === 'fulfilled') dailyRank.value = rank.value
 }
 
 async function loadMore() {
@@ -51,532 +30,111 @@ async function loadMore() {
   loading.value = true
   try {
     const page = await fetchPosts(cursor.value)
-    // 首页第一页：置顶项剥离进横滑卡组，列表只留普通文章（置顶区/列表职责分离）
-    const rest = firstPageLoaded.value
-      ? page.items
-      : page.items.filter(i => !i.topped)
-    items.value.push(...rest)
+    if (cursor.value === null) {
+      pinned.value = page.items.filter(item => item.topped)
+      items.value = page.items.filter(item => !item.topped)
+    } else {
+      items.value.push(...page.items)
+    }
     cursor.value = page.nextCursor
     finished.value = page.nextCursor === null
-    firstPageLoaded.value = true
+  } catch {
+    ElMessage.error('面经加载失败，请重试')
   } finally {
     loading.value = false
   }
 }
 
-async function doSearch() {
-  if (!keyword.value.trim()) return
+async function runSearch(q: string) {
+  keyword.value = q
+  if (!q) { searchResults.value = null; searchError.value = false; return }
+  searchError.value = false
   searchLoading.value = true
   try {
-    searchResults.value = await searchPosts(keyword.value.trim())
+    searchResults.value = await searchPosts(q)
+  } catch {
+    searchResults.value = null
+    searchError.value = true
   } finally {
     searchLoading.value = false
   }
 }
 
-function clearSearch() {
-  keyword.value = ''
-  searchResults.value = null
+function clearSearch() { router.push('/') }
+function formatTime(time: string) { return time.replace('T', ' ').slice(0, 16) }
+function displayExcerpt(excerpt: string | null) {
+  if (!excerpt) return ''
+  return excerpt
+    .replace(/!\[[^\]]*\]\([^)]*(?:\)|$)/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/(^|\s)#{1,6}\s/g, ' ')
+    .replace(/[*_`>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
-function formatTime(time: string): string {
-  return time.replace('T', ' ').slice(0, 16)
-}
-
-function coverOf(item: PostItem): string {
-  return item.tags.length > 0 ? item.tags[0][0] : '⚓'
-}
-
-onMounted(() => {
-  loadMore()
-  loadSidebar()
-})
+watch(() => route.query.q, q => { void runSearch(typeof q === 'string' ? q.trim() : '') }, { immediate: true })
+onMounted(() => { void loadMore(); void loadSidebar() })
 </script>
 
 <template>
-  <div class="container-wide home-layout">
-    <!-- 主列 -->
-    <div class="main-col">
-      <el-card shadow="never" class="search-panel">
-        <el-input
-          v-model="keyword"
-          size="large"
-          placeholder="搜索面经关键词（标题 / 正文），支持 ES 高亮"
-          :prefix-icon="Search"
-          clearable
-          @keyup.enter="doSearch"
-        >
-          <template #append>
-            <el-button :loading="searchLoading" @click="doSearch">搜索</el-button>
+  <div class="container-wide home-page">
+    <div v-if="keyword" class="search-context">搜索“{{ keyword }}”<button class="clear-search" @click="clearSearch">清除搜索</button></div>
+    <div class="home-layout">
+      <main class="main-col">
+        <template v-if="keyword">
+          <div v-if="searchLoading" class="list-status">正在搜索…</div>
+          <div v-else-if="searchError" class="list-status">搜索暂时不可用，请稍后重试</div>
+          <template v-else-if="searchResults">
+            <div v-if="searchResults.length === 0" class="list-status">没有匹配的面经，换个关键词试试</div>
+            <article v-for="item in searchResults" :key="item.id" class="post-row">
+              <div class="post-row-meta">{{ item.authorNickname }} · {{ formatTime(item.createTime) }}</div>
+              <RouterLink :to="`/posts/${item.id}`" class="post-title">
+                <span v-if="item.titleHighlight" v-html="item.titleHighlight"></span><span v-else>{{ item.title }}</span>
+              </RouterLink>
+              <p v-if="item.contentHighlight" class="post-excerpt" v-html="item.contentHighlight"></p>
+              <div class="post-tags"><span v-for="tag in item.tags.slice(0, 3)" :key="tag">{{ tag }}</span></div>
+            </article>
           </template>
-        </el-input>
-        <el-button
-          v-if="searchResults"
-          link
-          type="primary"
-          style="margin-top: 8px"
-          @click="clearSearch"
-        >
-          ← 清除搜索，回到全部面经
-        </el-button>
-      </el-card>
-
-      <!-- 置顶横滑卡组（首屏置顶文，CSDN 卡样式）-->
-      <template v-if="!searchResults && pinned.length > 0">
-        <div class="pin-head">
-          <span class="pin-title">📌 置顶推荐</span>
-          <span class="pin-hint">← 滑动查看 →</span>
-        </div>
-        <div class="pin-strip">
-          <RouterLink
-            v-for="p in pinned"
-            :key="p.id"
-            :to="`/posts/${p.id}`"
-            class="pin-card"
-          >
-            <span class="pin-cover">{{ coverOf(p) }}</span>
-            <span class="pin-body">
-              <span class="pin-card-title">{{ p.title }}</span>
-              <span class="pin-meta">
-                <span v-if="p.tags.length" class="pin-tag"><span class="dot"></span>{{ p.tags[0] }}</span>
-                <span>👁 {{ p.read }}</span>
-              </span>
-            </span>
-            <span class="pin-btn">阅读全文 →</span>
-          </RouterLink>
-        </div>
-      </template>
-
-      <template v-if="searchResults">
-        <el-empty
-          v-if="searchResults.length === 0"
-          description="没有匹配的面经，换个关键词试试"
-        />
-        <article
-          v-for="item in searchResults"
-          :key="item.id"
-          class="panel panel-hover search-hit"
-        >
-          <RouterLink :to="`/posts/${item.id}`" class="item-title">
-            <span v-if="item.titleHighlight" v-html="item.titleHighlight"></span>
-            <span v-else>{{ item.title }}</span>
-          </RouterLink>
-          <div class="muted meta-row">
-            {{ item.authorNickname }} · {{ formatTime(item.createTime) }}
-          </div>
-          <div v-if="item.contentHighlight" class="muted highlight excerpt" v-html="item.contentHighlight"></div>
-        </article>
-      </template>
-
-      <template v-else>
-        <el-skeleton :loading="loading && items.length === 0" :rows="4" animated>
-          <article v-for="item in items" :key="item.id" class="panel panel-hover post-card">
-            <RouterLink :to="`/posts/${item.id}`" class="item-title">{{ item.title }}</RouterLink>
-            <p v-if="item.excerpt" class="card-excerpt">{{ item.excerpt }}</p>
-            <div class="muted meta-row">
-              <span class="nick">{{ item.authorNickname }}</span>
-              <span>{{ formatTime(item.createTime) }}</span>
-              <span v-for="tag in item.tags.slice(0, 3)" :key="tag" class="tagchip">{{ tag }}</span>
-              <span class="stats">
-                <span>{{ item.read }} 阅读</span>
-                <span>{{ item.praise }} 赞</span>
-                <span>{{ item.comment }} 评</span>
-              </span>
-            </div>
+        </template>
+        <template v-else>
+          <section v-if="pinned.length" class="pinned-section">
+            <h2>置顶推荐</h2>
+            <div class="pinned-grid"><RouterLink v-for="item in pinned" :key="item.id" :to="`/posts/${item.id}`" class="pinned-card">
+              <span>置顶</span><strong>{{ item.title }}</strong><small>{{ item.tags.slice(0, 2).join(' · ') }} · {{ item.read }} 阅读 →</small>
+            </RouterLink></div>
+          </section>
+          <div v-if="loading && !items.length && !pinned.length" class="list-status">面经加载中…</div>
+          <div v-else-if="!items.length && !pinned.length" class="list-status">还没有面经，来写下第一篇吧</div>
+          <article v-for="item in items" :key="item.id" class="post-row">
+            <div class="post-row-meta">{{ item.authorNickname }} · {{ formatTime(item.createTime) }}</div>
+            <RouterLink :to="`/posts/${item.id}`" class="post-title">{{ item.title }}</RouterLink>
+            <p v-if="displayExcerpt(item.excerpt)" class="post-excerpt">{{ displayExcerpt(item.excerpt) }}</p>
+            <div class="post-bottom"><div class="post-tags"><span v-for="tag in item.tags.slice(0, 3)" :key="tag">{{ tag }}</span></div>
+              <div class="post-stats">{{ item.read }} 阅读 · {{ item.praise }} 赞 · {{ item.comment }} 评论</div></div>
           </article>
-          <el-empty
-            v-if="items.length === 0 && !loading"
-            description="还没有面经，来写下第一篇吧"
-          />
-        </el-skeleton>
-
-        <div v-if="!finished && items.length > 0" class="load-more">
-          <el-button :loading="loading" round @click="loadMore">
-            {{ loading ? '加载中…' : '加载更多' }}
-          </el-button>
-        </div>
-      </template>
+          <button v-if="!finished && (items.length || pinned.length)" class="load-more" :disabled="loading" @click="loadMore">{{ loading ? '加载中…' : '加载更多' }}</button>
+        </template>
+      </main>
+      <aside class="home-sidebar">
+        <section class="side-card"><h2>热门文章 <small>按互动热度</small></h2>
+          <p v-if="!hotPosts.length" class="side-empty">暂无热度数据</p>
+          <RouterLink v-for="(item, index) in hotPosts" :key="item.id" :to="`/posts/${item.id}`" class="rank-row">
+            <b>{{ String(index + 1).padStart(2, '0') }}</b><span>{{ item.title }}</span><small>{{ item.hotScore.toFixed(0) }}</small>
+          </RouterLink></section>
+        <section class="side-card"><h2>今日活跃 <small>发文与互动积分</small></h2>
+          <p v-if="!dailyRank.length" class="side-empty">今日还没有活跃用户</p>
+          <RouterLink v-for="item in dailyRank" :key="item.userId" :to="`/user/${item.userId}`" class="rank-row">
+            <b>{{ String(item.rank).padStart(2, '0') }}</b><span>{{ item.nickname }}</span><small>{{ item.score }} 分</small>
+          </RouterLink></section>
+        <section class="side-card about-card"><h2>关于 Ashore</h2><p>面经分享与 AI 辅助复盘社区。</p><RouterLink to="/about">了解项目 →</RouterLink></section>
+      </aside>
     </div>
-
-    <!-- 侧栏：三卡上下平铺（无 tab，对齐技术派/牛客）-->
-    <aside class="sidebar">
-      <div class="panel side-card">
-        <div class="side-head">
-          <span class="side-title">🔥 热门文章</span>
-          <span class="side-more">按互动热度</span>
-        </div>
-        <el-empty
-          v-if="hotPosts.length === 0"
-          :image-size="56"
-          description="暂无热度数据"
-        />
-        <ol v-else class="rank-list">
-          <li v-for="(h, i) in hotPosts" :key="h.id" class="rank-row">
-            <span class="rank-no" :class="{ top3: i < 3 }">{{ i + 1 }}</span>
-            <RouterLink :to="`/posts/${h.id}`" class="rank-title">{{ h.title }}</RouterLink>
-            <span class="rank-meta">{{ h.hotScore.toFixed(0) }}</span>
-          </li>
-        </ol>
-      </div>
-
-      <div class="panel side-card">
-        <div class="side-head">
-          <span class="side-title">🏅 本月活跃</span>
-          <span class="side-more">发文/互动积分</span>
-        </div>
-        <el-empty
-          v-if="dailyRank.length === 0"
-          :image-size="56"
-          description="今日还没有活跃用户"
-        />
-        <ol v-else class="rank-list">
-          <li v-for="r in dailyRank" :key="r.userId" class="rank-row">
-            <span class="rank-no" :class="{ top3: r.rank <= 3 }">{{ r.rank }}</span>
-            <span class="avatar-sm">{{ r.nickname[0] }}</span>
-            <span class="rank-title">{{ r.nickname }}</span>
-            <span class="rank-meta">{{ r.score }} 分</span>
-          </li>
-        </ol>
-      </div>
-
-      <div class="panel side-card">
-        <div class="side-head">
-          <span class="side-title">⚓ 关于 Ashore</span>
-        </div>
-        <div class="about-text">面经分享 + AI 模拟面试社区。<br>每一次复盘，都是离 offer 更近的一步。</div>
-      </div>
-    </aside>
   </div>
 </template>
 
 <style scoped>
-.home-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 20px;
-  align-items: start;
-}
-
-.main-col {
-  min-width: 0;
-}
-
-@media (max-width: 1000px) {
-  .home-layout {
-    grid-template-columns: 1fr;
-  }
-  .sidebar {
-    display: none;
-  }
-}
-
-/* ── 置顶横滑卡组 ── */
-.pin-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 10px;
-}
-
-.pin-title {
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.pin-hint {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.pin-strip {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: calc(50% - 6px);
-  gap: 12px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  padding-bottom: 8px;
-  margin-bottom: 20px;
-}
-
-.pin-strip::-webkit-scrollbar {
-  height: 6px;
-}
-
-.pin-strip::-webkit-scrollbar-thumb {
-  background: #d5dae1;
-  border-radius: 3px;
-}
-
-.pin-card {
-  scroll-snap-align: start;
-  background: linear-gradient(135deg, #f7faff 0%, #eef3ff 100%);
-  border: 1px solid #dfe8ff;
-  border-radius: 12px;
-  padding: 14px 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  text-decoration: none;
-}
-
-.pin-card:hover {
-  border-color: var(--el-color-primary);
-}
-
-.pin-cover {
-  width: 52px;
-  height: 52px;
-  border-radius: 10px;
-  flex-shrink: 0;
-  background: #fff;
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--el-color-primary);
-}
-
-.pin-body {
-  min-width: 0;
-  flex: 1;
-}
-
-.pin-card-title {
-  display: block;
-  font-size: 14.5px;
-  font-weight: 700;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pin-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.pin-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.pin-tag .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #34c724;
-}
-
-.pin-btn {
-  border: 1px solid var(--border);
-  background: #fff;
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-size: 12.5px;
-  color: var(--text);
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-/* ── 文章卡 ── */
-.post-card .item-title,
-.search-hit .item-title {
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--text);
-  text-decoration: none;
-  line-height: 1.5;
-}
-
-.item-title:hover {
-  color: var(--accent);
-}
-
-.card-excerpt {
-  font-size: 13px;
-  color: var(--muted);
-  margin: 6px 0 0;
-  line-height: 1.65;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.meta-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 10px 0 0;
-  flex-wrap: wrap;
-}
-
-.nick {
-  font-weight: 600;
-  color: var(--text);
-}
-
-.tagchip {
-  font-size: 11px;
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-  padding: 1px 8px;
-  border-radius: 999px;
-}
-
-.stats {
-  margin-left: auto;
-  display: flex;
-  gap: 12px;
-}
-
-.load-more {
-  text-align: center;
-  padding: 8px 0 16px;
-}
-
-/* ── 侧栏 ── */
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  position: sticky;
-  top: 76px;
-}
-
-.side-card {
-  padding: 14px 16px;
-}
-
-.side-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 10px;
-}
-
-.side-title {
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.side-more {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.about-text {
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.7;
-}
-
-.rank-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.rank-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px dashed var(--border);
-  font-size: 13px;
-}
-
-.rank-row:last-child {
-  border-bottom: none;
-}
-
-.rank-no {
-  width: 18px;
-  text-align: center;
-  font-style: italic;
-  font-weight: 800;
-  color: #c3ccd6;
-  flex-shrink: 0;
-}
-
-.rank-no.top3 {
-  color: var(--el-color-danger);
-}
-
-.rank-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text);
-  text-decoration: none;
-}
-
-a.rank-title:hover {
-  color: var(--accent);
-}
-
-.rank-meta {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.avatar-sm {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--el-color-primary-light-8);
-  color: var(--el-color-primary-dark-2);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-/* ── 搜索 ── */
-.search-panel {
-  border-radius: 14px;
-  border: 1px solid var(--border);
-  margin-bottom: 16px;
-}
-
-.search-panel :deep(.el-input__wrapper) {
-  border-radius: 10px;
-}
-
-.search-panel :deep(.el-input-group__append) {
-  background: var(--el-color-primary);
-  border: none;
-  padding: 0;
-}
-
-.search-panel :deep(.el-input-group__append .el-button) {
-  color: #fff;
-  margin: 0;
-  padding: 0 20px;
-  height: 100%;
-}
-
-.search-hit .item-title {
-  font-size: 17px;
-}
-
-.excerpt {
-  margin-top: 4px;
-  line-height: 1.7;
-}
+.home-page{max-width:1190px;padding-top:24px}.search-context{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;color:var(--muted);font-size:13px}.clear-search{padding:6px 12px;border-radius:8px;background:var(--card);color:var(--text);border:1px solid var(--border);cursor:pointer}.home-layout{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:22px;align-items:start}.main-col{min-width:0}.post-row,.side-card{background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-card)}.post-row{padding:21px 24px;margin-bottom:11px}.post-row:hover{border-color:#d4b4a6}.post-row-meta{font-size:12px;color:var(--muted)}.post-title{display:block;margin:7px 0;font-size:18px;font-weight:700;line-height:1.45;color:var(--text);text-decoration:none}.post-title:hover{color:var(--accent)}.post-excerpt{color:var(--muted);font-size:13px;line-height:1.7;margin:0 0 12px}.post-bottom{display:flex;align-items:center;justify-content:space-between;gap:10px}.post-tags{display:flex;gap:6px;flex-wrap:wrap}.post-tags span{font-size:11px;padding:2px 8px;background:#f7ece6;color:#a65c43;border-radius:4px}.post-stats{font-size:11px;color:var(--muted);white-space:nowrap}.list-status{padding:35px;text-align:center;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:10px}.load-more{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 16px;color:var(--text);cursor:pointer}.load-more:disabled{opacity:.5}.pinned-section h2{font-size:16px;margin:0 0 10px}.pinned-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:19px}.pinned-card{display:flex;flex-direction:column;gap:7px;padding:17px;background:#fff7f1;border:1px solid #ead9ca;border-radius:9px;text-decoration:none;color:var(--text)}.pinned-card:hover{border-color:var(--accent)}.pinned-card span{color:var(--accent);font-size:11px;font-weight:700}.pinned-card strong{line-height:1.45}.pinned-card small{color:var(--muted)}.home-sidebar{display:flex;flex-direction:column;gap:13px;position:sticky;top:90px}.side-card{padding:19px}.side-card h2{font-size:15px;margin:0 0 11px}.side-card h2 small{font-size:11px;font-weight:400;color:var(--muted)}.rank-row{display:flex;align-items:start;gap:9px;padding:10px 0;border-top:1px solid var(--border);text-decoration:none;color:var(--text);font-size:12px}.rank-row:hover span{color:var(--accent)}.rank-row b{color:var(--accent);width:22px;flex:none}.rank-row span{flex:1;line-height:1.5}.rank-row small{color:var(--muted);white-space:nowrap}.side-empty,.about-card p{color:var(--muted);font-size:12px}.about-card a{font-size:12px;color:var(--accent);text-decoration:none}
+@media(max-width:900px){.home-layout{grid-template-columns:1fr}.home-sidebar{position:static;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.about-card{grid-column:1/-1}}
+@media(max-width:600px){.home-page{padding-top:27px}.home-sidebar,.pinned-grid{grid-template-columns:1fr}.post-row{padding:17px}.post-bottom{align-items:start;flex-direction:column}.home-head h1{font-size:26px}}
 </style>

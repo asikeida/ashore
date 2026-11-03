@@ -283,7 +283,7 @@ onMounted(load)
       <RouterLink to="/"><el-button type="primary" plain>返回列表</el-button></RouterLink>
     </el-empty>
 
-    <div v-if="post" class="detail-layout">
+    <div v-if="post" class="detail-layout" :class="{ 'has-toc': toc.length > 0 }">
       <!-- 左：目录 -->
       <aside v-if="toc.length > 0" class="toc panel">
         <div class="toc-title">目录</div>
@@ -479,23 +479,33 @@ onMounted(load)
 <style scoped>
 .detail-layout {
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr) 300px;
   gap: 18px;
   align-items: start;
+}
+
+.detail-main,
+.ai-panel {
+  min-width: 0;
+}
+
+.detail-layout.has-toc {
+  grid-template-columns: 190px minmax(0, 1fr) 300px;
 }
 
 @media (max-width: 1280px) {
   .toc {
     display: none;
   }
-  .detail-layout {
+  .detail-layout.has-toc {
     grid-template-columns: minmax(0, 1fr) 300px;
   }
 }
 
 @media (max-width: 1000px) {
-  .detail-layout {
-    grid-template-columns: 1fr;
+  .detail-layout,
+  .detail-layout.has-toc {
+    grid-template-columns: minmax(0, 1fr);
   }
   .ai-panel {
     position: static;
@@ -642,6 +652,10 @@ onMounted(load)
   margin-top: 10px;
 }
 
+.chat-input :deep(.el-input) {
+  min-width: 0;
+}
+
 /* 正文排版 */
 .post-content {
   line-height: 1.85;
@@ -763,6 +777,7 @@ onMounted(load)
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
   margin-top: 20px;
 }
 

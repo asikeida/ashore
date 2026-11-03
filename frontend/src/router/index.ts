@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router"
 import { auth, refreshAuth } from '../stores/auth'
 
 const Home = () => import('../views/Home.vue')
+const About = () => import('../views/About.vue')
 const Login = () => import('../views/Login.vue')
 const Register = () => import('../views/Register.vue')
 const PostDetail = () => import('../views/PostDetail.vue')
@@ -19,6 +20,7 @@ export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', component: Home },
+    { path: '/about', component: About },
     { path: '/login', component: Login },
     { path: '/register', component: Register },
     { path: '/posts/:id', component: PostDetail, props: true },

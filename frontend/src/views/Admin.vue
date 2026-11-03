@@ -58,7 +58,8 @@ async function offline(id: string) {
   }
 }
 
-async function toggleTopping(row: AdminPostItem) {
+async function toggleTopping(value: unknown) {
+  const row = value as AdminPostItem
   try {
     await setPostTopping(row.id, !row.topped)
     ElMessage.success(row.topped ? '已取消置顶' : '已置顶')
@@ -87,7 +88,8 @@ async function loadUsers() {
   }
 }
 
-async function ban(user: AdminUserItem) {
+async function ban(value: unknown) {
+  const user = value as AdminUserItem
   try {
     await ElMessageBox.confirm(
       `确认封禁「${user.nickname || user.account}」？其全部登录会话将即刻失效。`,
@@ -109,7 +111,8 @@ async function ban(user: AdminUserItem) {
   }
 }
 
-async function unban(user: AdminUserItem) {
+async function unban(value: unknown) {
+  const user = value as AdminUserItem
   actingUserId.value = user.id
   try {
     await unbanUser(user.id)
@@ -155,7 +158,8 @@ async function onReportTabEnter() {
   if (reports.value.length === 0) await loadReports()
 }
 
-async function actOnReport(row: ReportItem, action: 'DISMISS' | 'OFFLINE') {
+async function actOnReport(value: unknown, action: 'DISMISS' | 'OFFLINE') {
+  const row = value as ReportItem
   const verb = action === 'OFFLINE' ? '处置内容（文章下线/评论删除）' : '驳回（标记误报）'
   try {
     await ElMessageBox.confirm(`确认${verb}？`, '处理举报', {
@@ -178,8 +182,8 @@ async function actOnReport(row: ReportItem, action: 'DISMISS' | 'OFFLINE') {
   }
 }
 
-function onTabChange(tab: { paneName: string }) {
-  if (tab.paneName === 'reports') onReportTabEnter()
+function onTabChange(tab: string | number) {
+  if (tab === 'reports') onReportTabEnter()
 }
 
 onMounted(() => {

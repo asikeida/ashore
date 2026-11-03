@@ -91,6 +91,25 @@ class AuthControllerTests {
     }
 
     @Test
+    void guestLoginReusesPersistentAccountAndReservesName() throws Exception {
+        String firstId = mvc.perform(post("/api/v1/auth/guest-login"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.account").value("guest"))
+                .andExpect(cookie().httpOnly(SessionService.COOKIE_NAME, true))
+                .andReturn().getResponse().getContentAsString();
+        String secondId = mvc.perform(post("/api/v1/auth/guest-login"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(
+                new com.fasterxml.jackson.databind.ObjectMapper().readTree(firstId).at("/result/id").asText())
+                .isEqualTo(new com.fasterxml.jackson.databind.ObjectMapper().readTree(secondId).at("/result/id").asText());
+        mvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"account\":\"guest\",\"password\":\"test123456\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status.code").value(400002));
+    }
+
+    @Test
     void logoutClearsCookieAndSucceedsWithoutSession() throws Exception {
         mvc.perform(delete("/api/v1/auth/logout"))
                 .andExpect(status().isOk())

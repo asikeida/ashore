@@ -68,6 +68,14 @@ public class AuthController {
         return ResVo.ok(vo);
     }
 
+    @Operation(summary = "游客登录", description = "登录共享的持久化 guest 用户，签发普通用户会话 Cookie")
+    @PostMapping("/guest-login")
+    public ResVo<UserVo> guestLogin(HttpServletResponse response) {
+        UserVo vo = authService.guestLogin();
+        issueSessionCookie(vo, response);
+        return ResVo.ok(vo);
+    }
+
     /** 当前登录身份（受保护端点样例；公开性由 @Permission 默认 LOGIN 决定） */
     @Operation(summary = "当前用户", description = "需登录（ashore_session Cookie）；返回会话身份快照")
     @Permission

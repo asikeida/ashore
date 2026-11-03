@@ -34,11 +34,11 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return handle<T>(response)
 }
 
-export async function apiPut<T>(path: string, body: unknown): Promise<T> {
+export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
   })
   return handle<T>(response)
 }
