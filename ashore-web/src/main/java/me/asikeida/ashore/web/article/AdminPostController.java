@@ -9,6 +9,7 @@ import me.asikeida.ashore.service.article.service.ArticleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -44,6 +45,14 @@ public class AdminPostController {
     @PostMapping("/{id}/topping")
     public ResVo<Void> setTopping(@PathVariable Long id, @RequestParam boolean topped) {
         articleService.setTopping(id, topped, me.asikeida.ashore.api.context.ReqContext.loginUser());
+        return ResVo.ok();
+    }
+
+    @Operation(summary = "删除文章", description = "仅管理员；软删除文章并从公开列表、详情及搜索索引移除")
+    @Permission(UserRole.ADMIN)
+    @DeleteMapping("/{id}")
+    public ResVo<Void> delete(@PathVariable Long id) {
+        articleService.delete(id, me.asikeida.ashore.api.context.ReqContext.loginUser());
         return ResVo.ok();
     }
 }

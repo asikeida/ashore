@@ -33,6 +33,9 @@ public interface ArticleService {
     /** 下线/撤回：作者或管理员；REVIEW/ONLINE → OFFLINE */
     void offline(Long articleId, LoginUser operator);
 
+    /** 管理员软删除面经，同时从搜索索引移除。 */
+    void delete(Long articleId, LoginUser operator);
+
     /** 重新提交审核：仅作者；OFFLINE → REVIEW */
     void submit(Long articleId, LoginUser operator);
 

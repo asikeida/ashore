@@ -161,6 +161,18 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
+    public void delete(Long articleId, LoginUser operator) {
+        if (operator == null || !operator.isAdmin()) {
+            throw ExceptionUtil.of(StatusEnum.FORBIDDEN);
+        }
+        ArticleDO article = requireArticle(articleId);
+        article.setDeleted(1);
+        article.setStatus(ArticleStatus.OFFLINE.name());
+        articleMapper.updateById(article);
+        syncIndex(article, null);
+    }
+
+    @Override
     public void submit(Long articleId, LoginUser operator) {
         ArticleDO article = requireManaged(articleId, operator);
         if (!article.getAuthorId().equals(operator.userId())) {

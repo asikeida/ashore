@@ -3,6 +3,7 @@ package me.asikeida.ashore.web.article;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -136,6 +137,23 @@ class PostControllerTests {
         ArticleDetailDO detail = detailMapper.selectOne(new LambdaQueryWrapper<ArticleDetailDO>()
                 .eq(ArticleDetailDO::getArticleId, Long.valueOf(id)));
         org.assertj.core.api.Assertions.assertThat(detail.getVersion()).isEqualTo(1);
+    }
+
+    @Test
+    void adminDeleteHidesArticleAndRejectsOtherUsers() throws Exception {
+        String id = publishAsAuthor("管理员删除测试" + System.nanoTime());
+        mvc.perform(post("/api/v1/posts/" + id + "/online").cookie(new Cookie(COOKIE, "admin-token")))
+                .andExpect(status().isOk());
+        mvc.perform(delete("/api/v1/admin/posts/" + id))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(delete("/api/v1/admin/posts/" + id).cookie(new Cookie(COOKIE, "author-token")))
+                .andExpect(status().isForbidden());
+        mvc.perform(delete("/api/v1/admin/posts/" + id).cookie(new Cookie(COOKIE, "admin-token")))
+                .andExpect(status().isOk());
+        org.assertj.core.api.Assertions.assertThat(articleMapper.selectById(Long.valueOf(id)).getDeleted()).isEqualTo(1);
+        mvc.perform(get("/api/v1/posts/" + id)).andExpect(status().isNotFound());
+        mvc.perform(delete("/api/v1/admin/posts/" + id).cookie(new Cookie(COOKIE, "admin-token")))
+                .andExpect(status().isNotFound());
     }
 
     @Test
