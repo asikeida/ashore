@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# 京东云（mine-asikeida）HTTPS 入口一键初始化：Nginx + Let's Encrypt IP 证书（acme.sh 签发）
+# HTTPS 入口初始化：Nginx + Let's Encrypt IP 证书（acme.sh 签发）
 # 前置：安全组已放行 22/80/443/8443；仓库已上传至 /opt/apps/ashore（含 deploy/nginx 与 scripts）
 # 产物：80(ACME 验证+301) / 8443(Ashore TLS 站点)；证书 6 天有效期由每小时 cron 自动续期
-# 用法：scp 上传后 ssh mine-asikeida 'sudo bash /opt/apps/ashore/scripts/prod-https-setup.sh'
-# 注意：服务器 asikeida 登录 shell 为 fish——本脚本必须以 `sudo bash 本脚本` 运行
+# 用法：sudo ASHORE_PUBLIC_IP=<服务器公网 IPv4> bash /opt/apps/ashore/scripts/prod-https-setup.sh
 #
 # 为什么是 acme.sh 而不是 certbot（真机结论，勿回退）：
 #   certbot 至 5.9.0（PyPI 最新）的 util.enforce_domain_sanity 仍无条件拒绝 IP 标识符；
@@ -13,7 +12,11 @@
 #   安装走 codeload tarball。
 set -euo pipefail
 
-IP=111.228.13.15
+PUBLIC_IP=${ASHORE_PUBLIC_IP:?请设置 ASHORE_PUBLIC_IP 为服务器公网 IPv4}
+if [[ ! "$PUBLIC_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+  echo 'ASHORE_PUBLIC_IP 必须是 IPv4 地址' >&2
+  exit 1
+fi
 ASHORE_DIR=/opt/apps/ashore
 CONF_SRC=$ASHORE_DIR/deploy/nginx
 WEBROOT=/var/www/acme-webroot
@@ -22,9 +25,6 @@ ACME_HOME=/root/.acme.sh
 
 command -v apt-get >/dev/null || { echo "仅支持 apt 系发行版（Ubuntu/Debian）"; exit 1; }
 [ "$(id -u)" -eq 0 ] || { echo "请以 root / sudo 运行"; exit 1; }
-
-echo "==> 0/8 剥离 Windows 换行（scp 上传的工作副本可能带 CRLF，CRLF 会毒化 bash 与 nginx）"
-sed -i 's/\r$//' "$CONF_SRC"/*.conf "$ASHORE_DIR"/scripts/*.sh
 
 echo "==> 1/8 安装 nginx；清理 certbot 残留"
 apt-get update -qq && apt-get install -y -qq nginx git curl
@@ -49,7 +49,8 @@ echo "==> 3/8 准备 ACME webroot 与前端目录"
 mkdir -p "$WEBROOT" "$ASHORE_DIR/frontend-dist"
 
 echo "==> 4/8 部署 80 站点（先于证书存在，ACME 验证依赖它）"
-cp "$CONF_SRC/ashore-http-80.conf" /etc/nginx/sites-available/
+sed -e 's/\r$//' -e "s/__ASHORE_PUBLIC_IP__/$PUBLIC_IP/g" \
+  "$CONF_SRC/ashore-http-80.conf" > /etc/nginx/sites-available/ashore-http-80.conf
 ln -sf /etc/nginx/sites-available/ashore-http-80.conf /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default   # 移除默认站点，避免 80 冲突
 nginx -t && systemctl reload nginx
@@ -62,13 +63,13 @@ if [ ! -f "$CERT_DIR/fullchain.pem" ]; then
     echo "FATAL: acme.sh 缺少 profile 支持（--certificate-profile），请用 github master 版"; exit 1
   fi
   "$ACME_HOME/acme.sh" --issue --server letsencrypt \
-    -d "$IP" -w "$WEBROOT" \
+    -d "$PUBLIC_IP" -w "$WEBROOT" \
     --certificate-profile shortlived --days 3
 fi
 
 echo "==> 6/8 安装证书到固定路径（acme.sh 续期后自动回填并 reload nginx）"
 mkdir -p "$CERT_DIR"
-"$ACME_HOME/acme.sh" --install-cert --server letsencrypt -d "$IP" \
+"$ACME_HOME/acme.sh" --install-cert --server letsencrypt -d "$PUBLIC_IP" \
   --fullchain-file "$CERT_DIR/fullchain.pem" \
   --key-file "$CERT_DIR/privkey.pem" \
   --reloadcmd "systemctl reload nginx"
@@ -76,7 +77,8 @@ chmod 600 "$CERT_DIR/privkey.pem"
 chmod 644 "$CERT_DIR/fullchain.pem"
 
 echo "==> 7/8 部署 8443 Ashore TLS 站点"
-cp "$CONF_SRC/ashore-https-8443.conf" /etc/nginx/sites-available/
+sed -e 's/\r$//' -e "s/__ASHORE_PUBLIC_IP__/$PUBLIC_IP/g" \
+  "$CONF_SRC/ashore-https-8443.conf" > /etc/nginx/sites-available/ashore-https-8443.conf
 ln -sf /etc/nginx/sites-available/ashore-https-8443.conf /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
 systemctl enable --now nginx
@@ -94,9 +96,9 @@ chmod 644 /etc/cron.d/ashore-cert-check
 
 echo ""
 echo "续期排期核对（6 天证书应显示约 4 天后续期）："
-"$ACME_HOME/acme.sh" --info -d "$IP" | grep -E "Le_NextRenewTime" || true
+"$ACME_HOME/acme.sh" --info -d "$PUBLIC_IP" | grep -E "Le_NextRenewTime" || true
 echo ""
 echo "完成。后续手动步骤（切流量）："
 echo "  1. scp frontend/dist/* -> $ASHORE_DIR/frontend-dist/"
 echo "  2. $ASHORE_DIR/ashore.env 追加 ASHORE_COOKIE_SECURE=true 并重启应用"
-echo "  3. 验证：curl -sI https://$IP:8443 | head -1"
+echo "  3. 验证：curl -sI https://$PUBLIC_IP:8443 | head -1"

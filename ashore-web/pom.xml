@@ -29,8 +29,8 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
-        <!-- OpenAPI 文档：springdoc 2.x 配套 Spring Boot 3.x（3.x 线为 Boot 4 专用），
-             /v3/api-docs 同时作为 Apifox 接口同步的数据源（见 .agents/rules/07） -->
+        <!-- OpenAPI 文档：springdoc 2.x 配套 Spring Boot 3.x（3.x 线为 Boot 4 专用）；
+             /v3/api-docs 是接口文档的数据源 -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
