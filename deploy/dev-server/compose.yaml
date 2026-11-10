@@ -1,9 +1,8 @@
-# 云端开发服务器（4-yuchen）的 MySQL + Redis 环境。
+# 开发服务器的 MySQL + Redis 环境。
 # 与本地 compose.yaml 的关键差异：
 # 1. 端口只绑定服务器自身的 127.0.0.1 —— 公网完全不可达，仅通过 SSH 隧道访问（见 scripts/dev-tunnel.sh）
 # 2. 2C2G 机器，加内存上限约束
 # 3. restart: unless-stopped 常驻
-# 部署方式见 docs/部署运维/01-云端开发数据库与SSH隧道.md
 services:
   mysql:
     image: mysql:8.4
